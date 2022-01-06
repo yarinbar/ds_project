@@ -1,0 +1,17 @@
+syntax = "proto3";
+package messages;
+
+option java_multiple_files = true;
+
+message HistoryRequest{
+  string addr = 1;
+  uint64 n = 2;
+}
+
+message HistoryResponse{
+  int32 b = 1;
+}
+
+service GetAllTxs{
+  rpc GetHistory(HistoryRequest) returns (HistoryResponse);
+}

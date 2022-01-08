@@ -13,6 +13,18 @@ message HistoryResponse{
   string message = 2;
 }
 
+message RequestObject{
+  int32 id = 1;
+}
+
+message ResponseObject{
+  repeated string timestamps = 1;
+}
+
+service SubmitRequest{
+  rpc AddRequest(RequestObject) returns (ResponseObject);
+}
+
 service GetAllTxs{
   rpc GetHistory(HistoryRequest) returns (HistoryResponse);
 }

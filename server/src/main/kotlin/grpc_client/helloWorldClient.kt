@@ -1,18 +1,15 @@
 package com.kotlingrpc.demoGrpc.generated.main.grpckt.com.kotlingrpc.demoGrpc
 
 import com.kotlingrpc.demoGrpc.GreeterGrpcKt
-import messages.GetAllTxsGrpcKt
-import messages.HistoryResponse
-import messages.HistoryRequest
-import messages.GetAllTxsGrpc
-import com.kotlingrpc.demoGrpc.HelloRequest
+import messages.*
 import io.grpc.ManagedChannel
 import io.grpc.ManagedChannelBuilder
 import java.io.Closeable
 import java.util.concurrent.TimeUnit
 
 class HelloWorldClient(private val channel: ManagedChannel) : Closeable {
-    private val stub: GetAllTxsGrpcKt.GetAllTxsCoroutineStub = GetAllTxsGrpcKt.GetAllTxsCoroutineStub(channel)
+    private val stub1: GetAllTxsGrpcKt.GetAllTxsCoroutineStub = GetAllTxsGrpcKt.GetAllTxsCoroutineStub(channel)
+    private val stub2: SubmitRequestGrpcKt.SubmitRequestCoroutineStub = SubmitRequestGrpcKt.SubmitRequestCoroutineStub(channel)
 
 //    suspend fun greet(name: String) {
 //        val request = HelloRequest.newBuilder().setName(name).build()
@@ -22,9 +19,15 @@ class HelloWorldClient(private val channel: ManagedChannel) : Closeable {
 
     suspend fun get_history(addr: String, n: Long){
         val request = HistoryRequest.newBuilder().setAddr(addr).setN(n).build()
-        val response = stub.getHistory(request)
+        val response = stub1.getHistory(request)
         println("Received: ${response.message}")
 
+    }
+
+    suspend fun add_request(id: Int){
+        val request = RequestObject.newBuilder().setId(id).build()
+        val response = stub2.addRequest(request)
+        println("${response}")
     }
 
     override fun close() {
@@ -45,5 +48,10 @@ suspend fun main(args: Array<String>) {
 
     val addr = args.singleOrNull() ?: "0x00000001"
     val n = 10.toLong()
-    client.get_history(addr, n)
+//    client.get_history(addr, n)
+    client.add_request(10)
+    client.add_request(10)
+    client.add_request(10)
+    client.add_request(10)
+    client.add_request(11)
 }

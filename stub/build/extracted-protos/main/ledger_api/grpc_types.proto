@@ -20,3 +20,17 @@ message Tx {
   repeated Tr outputs = 3;
   google.protobuf.Timestamp created = 4;
 }
+
+/*
+  SubmitTransaction
+  SendMoney
+  GetUTxOs
+  GetHistory
+  AddInducedUTxOs // all the utxos that are made after a tx is completed
+
+  UTxO -> Broadcast To My Shard
+  Tx   -> Broadcast To My Shard
+
+  UTxO -> To Other Shard
+  Tx   -> To Other Shard
+ */

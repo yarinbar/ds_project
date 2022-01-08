@@ -18,5 +18,5 @@ message Tx {
   string tx_id = 1;
   repeated Tx inputs = 2;
   repeated Tr outputs = 3;
-  google.protobuf.Timestamp last_updated = 4;
+  google.protobuf.Timestamp created = 4;
 }

@@ -13,6 +13,7 @@ import java.util.*
 
 fun Int.toBigInteger() = BigInteger.valueOf(toLong())
 var id = 1.toBigInteger()
+
 class TransferRequest(
     val from: String,
     val to: String,
@@ -46,6 +47,7 @@ data class TxWithTime(
     val tx: Tx,
     val timestamp: Timestamp
 )
+
 @Service
 class TransactionsManager{
     var utxos: HashMap<String, MutableList<UTxOWithValue>> =HashMap<String,MutableList<UTxOWithValue>> ()
@@ -54,6 +56,7 @@ class TransactionsManager{
     fun addTx(tx:Tx):Boolean {
         return true
     }
+
     fun addGenesisTx(): Unit {
         val genesisCoins = 100.toULong()
         val genesisAddr = 0.toString()

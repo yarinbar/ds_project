@@ -10,6 +10,11 @@ message HistoryRequest{
 
 message HistoryResponse{
   int32 b = 1;
+  string message = 2;
+}
+
+service SendInducedUTxO{
+
 }
 
 service GetAllTxs{

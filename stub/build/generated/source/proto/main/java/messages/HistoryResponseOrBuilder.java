@@ -12,4 +12,16 @@ public interface HistoryResponseOrBuilder extends
    * @return The b.
    */
   int getB();
+
+  /**
+   * <code>string message = 2;</code>
+   * @return The message.
+   */
+  java.lang.String getMessage();
+  /**
+   * <code>string message = 2;</code>
+   * @return The bytes for message.
+   */
+  com.google.protobuf.ByteString
+      getMessageBytes();
 }

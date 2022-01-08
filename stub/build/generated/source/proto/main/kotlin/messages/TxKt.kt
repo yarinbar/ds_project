@@ -166,27 +166,27 @@ object TxKt {
       _builder.clearOutputs()
     }
     /**
-     * <code>.google.protobuf.Timestamp last_updated = 4;</code>
+     * <code>.google.protobuf.Timestamp created = 4;</code>
      */
-    var lastUpdated: com.google.protobuf.Timestamp
-      @JvmName("getLastUpdated")
-      get() = _builder.getLastUpdated()
-      @JvmName("setLastUpdated")
+    var created: com.google.protobuf.Timestamp
+      @JvmName("getCreated")
+      get() = _builder.getCreated()
+      @JvmName("setCreated")
       set(value) {
-        _builder.setLastUpdated(value)
+        _builder.setCreated(value)
       }
     /**
-     * <code>.google.protobuf.Timestamp last_updated = 4;</code>
+     * <code>.google.protobuf.Timestamp created = 4;</code>
      */
-    fun clearLastUpdated() {
-      _builder.clearLastUpdated()
+    fun clearCreated() {
+      _builder.clearCreated()
     }
     /**
-     * <code>.google.protobuf.Timestamp last_updated = 4;</code>
-     * @return Whether the lastUpdated field is set.
+     * <code>.google.protobuf.Timestamp created = 4;</code>
+     * @return Whether the created field is set.
      */
-    fun hasLastUpdated(): kotlin.Boolean {
-      return _builder.hasLastUpdated()
+    fun hasCreated(): kotlin.Boolean {
+      return _builder.hasCreated()
     }
   }
 }

@@ -38,6 +38,23 @@ object HistoryResponseKt {
     fun clearB() {
       _builder.clearB()
     }
+
+    /**
+     * <code>string message = 2;</code>
+     */
+    var message: kotlin.String
+      @JvmName("getMessage")
+      get() = _builder.getMessage()
+      @JvmName("setMessage")
+      set(value) {
+        _builder.setMessage(value)
+      }
+    /**
+     * <code>string message = 2;</code>
+     */
+    fun clearMessage() {
+      _builder.clearMessage()
+    }
   }
 }
 @kotlin.jvm.JvmSynthetic

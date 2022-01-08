@@ -35,10 +35,10 @@ public final class GrpcRequests {
     java.lang.String[] descriptorData = {
       "\n\036ledger_api/grpc_requests.proto\022\010messag" +
       "es\")\n\016HistoryRequest\022\014\n\004addr\030\001 \001(\t\022\t\n\001n\030" +
-      "\002 \001(\004\"\034\n\017HistoryResponse\022\t\n\001b\030\001 \001(\0052N\n\tG" +
-      "etAllTxs\022A\n\nGetHistory\022\030.messages.Histor" +
-      "yRequest\032\031.messages.HistoryResponseB\002P\001b" +
-      "\006proto3"
+      "\002 \001(\004\"-\n\017HistoryResponse\022\t\n\001b\030\001 \001(\005\022\017\n\007m" +
+      "essage\030\002 \001(\t2N\n\tGetAllTxs\022A\n\nGetHistory\022" +
+      "\030.messages.HistoryRequest\032\031.messages.His" +
+      "toryResponseB\002P\001b\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
@@ -55,7 +55,7 @@ public final class GrpcRequests {
     internal_static_messages_HistoryResponse_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_messages_HistoryResponse_descriptor,
-        new java.lang.String[] { "B", });
+        new java.lang.String[] { "B", "Message", });
   }
 
   // @@protoc_insertion_point(outer_class_scope)

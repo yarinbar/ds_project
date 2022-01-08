@@ -1,28 +1,69 @@
 syntax = "proto3";
 package messages;
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
 
-option java_multiple_files = true;
+
+message UTxO {
+  string tx_id = 1;
+  string addr = 2;
+}
+
+message UTxOWithValue{
+  UTxO utxo = 1;
+  uint64 coins = 2;
+}
+
+message Tr {
+  string addr = 1;
+  uint64 coins = 2;
+}
+
+message Tx {
+  string tx_id = 1;
+  repeated Tx inputs = 2;
+  repeated Tr outputs = 3;
+}
+
+message TxWithTime{
+  Tx tx = 1;
+  google.protobuf.Timestamp timestamp = 2;
+}
+
+//------------------------- Request / Response ----------------
+
 
 message HistoryRequest{
   string addr = 1;
-  uint64 n = 2;
+  uint64 limit = 2;
 }
 
 message HistoryResponse{
-  int32 b = 1;
-  string message = 2;
+  repeated Tx txs = 1;
 }
 
-message RequestObject{
-  int32 id = 1;
+message UTxORequest{
+  string addr = 1;
+  uint64 limit = 2;
 }
 
-message ResponseObject{
-  repeated string timestamps = 1;
+message UTxOResponse{
+  repeated UTxO utxos = 1;
 }
 
-service SubmitRequest{
-  rpc AddRequest(RequestObject) returns (ResponseObject);
+message SendMoneyRequest{
+  string addr = 1;
+  uint64 coins = 2;
+}
+
+message SendMoneyResponse{
+  string tx_id = 1;
+}
+
+// --------------- Services --------------------
+
+service GetUTxOs{
+  rpc GetUTxOs(UTxORequest) returns (UTxOResponse);
 }
 
 service GetAllTxs{

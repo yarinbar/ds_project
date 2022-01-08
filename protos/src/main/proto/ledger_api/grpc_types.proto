@@ -22,10 +22,11 @@ message Tx {
 }
 
 /*
-  SubmitTransfer
+  SubmitTransaction
   SendMoney
   GetUTxOs
   GetHistory
+  AddInducedUTxOs // all the utxos that are made after a tx is completed
 
   UTxO -> Broadcast To My Shard
   Tx   -> Broadcast To My Shard

@@ -8,7 +8,7 @@ import java.io.Closeable
 import java.util.concurrent.TimeUnit
 
 class HelloWorldClient(private val channel: ManagedChannel) : Closeable {
-    private val stub1: GetAllTxsGrpcKt.GetAllTxsCoroutineStub = GetAllTxsGrpcKt.GetAllTxsCoroutineStub(channel)
+//    private val stub1: GetAllTxsGrpcKt.GetAllTxsCoroutineStub = GetAllTxsGrpcKt.GetAllTxsCoroutineStub(channel)
 //    private val stub2: SubmitRequestGrpcKt.SubmitRequestCoroutineStub = SubmitRequestGrpcKt.SubmitRequestCoroutineStub(channel)
 
 //    suspend fun greet(name: String) {

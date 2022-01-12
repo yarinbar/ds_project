@@ -49,7 +49,7 @@ class HelloWorldClient(private val channel: ManagedChannel) : Closeable {
         println("That address is in my shard, fetching the relevant txs")
         val history = public_stub.getHistory(request)
         val history_list = history.txsList.toList()
-//        val sorted_history: List<Tx> = history_list.sortedBy { Tx. }
+//        val sorted_history: List<Tx> = history_list.sortedWith(compareByDescending { it.timestamp })
 
 
         // slicing relevant part
@@ -66,7 +66,7 @@ class HelloWorldClient(private val channel: ManagedChannel) : Closeable {
         return n_history_list
     }
 
-    suspend fun send_money(src_addr: String, dst_addr: String, coins: UInt) : String{
+      suspend fun send_money(src_addr: String, dst_addr: String, coins: UInt) : String{
 
         if (coins.toInt() == 0){
             return "invalid coin amount, only takes positive ints"
@@ -79,7 +79,7 @@ class HelloWorldClient(private val channel: ManagedChannel) : Closeable {
             .build()
 
         println("Attempting to send ${coins} coins from ${src_addr} to ${dst_addr}")
-        val send_money_response = public_stub.sendMoney(send_money_request)
+        val send_money_response = public_stub.sendMoney(request = send_money_request)
         println("Sent with tx_id ${send_money_response.txId}")
         return send_money_response.txId
     }
@@ -122,7 +122,7 @@ suspend fun main(args: Array<String>) {
     val src_addr = args.singleOrNull() ?: "0000"
     val dst_addr = args.singleOrNull() ?: "0002"
     val n = 10
-//    client.send_money(src_addr, dst_addr, 15.toUInt())
+    client.send_money(src_addr, dst_addr, 15.toUInt())
     println(client.get_history(src_addr, n))
 //    client.get_history(dst_addr, n)
 //    client.add_request(10)

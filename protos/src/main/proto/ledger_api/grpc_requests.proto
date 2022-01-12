@@ -62,10 +62,10 @@ message InternalResponse{
 // --------------- Services --------------------
 
 service UserServices{
-  rpc GetHistory(HistoryRequest) returns (HistoryResponse);
-  rpc GetUTxOs(UTxORequest) returns (UTxOResponse);
-  rpc SendMoney(SendMoneyRequest) returns (SendMoneyResponse);
-  rpc SubmitTx(Tx) returns (SendMoneyResponse);
+  rpc GetHistory(HistoryRequest) returns (HistoryResponse) {}
+  rpc GetUTxOs(UTxORequest) returns (UTxOResponse) {}
+  rpc SendMoney(SendMoneyRequest) returns (SendMoneyResponse) {}
+  rpc SubmitTx(Tx) returns (SendMoneyResponse) {}
 }
 
 service InternalServices{

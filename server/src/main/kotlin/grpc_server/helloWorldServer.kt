@@ -1,4 +1,4 @@
-package com.kotlingrpc.demoGrpc.generated.main.grpckt.com.kotlingrpc.demoGrpc
+package grpc_server
 
 
 import com.google.protobuf.util.Timestamps.fromMillis
@@ -24,7 +24,6 @@ class HelloWorldServer(private val port: Int) {
     fun start() {
         server.start()
         println("Server started, listening on $port")
-
         println("Creating genesis UTxO")
 
         val tx_id = "0x00000000001"
@@ -98,15 +97,12 @@ class HelloWorldServer(private val port: Int) {
 
         override suspend fun getUTxOs(request: UTxORequest): UTxOResponse {
             val addr = request.addr
-
             val utxos_hist: List<UTxO>
             val addr_history = utxos.get(addr)
-
             if(addr_history != null)
                 utxos_hist = addr_history.toList()
             else
                 utxos_hist = emptyList()
-
 
             val grpc_utxos_hist = uTxOResponse {
                 utxos.addAll(utxos_hist)
@@ -115,17 +111,17 @@ class HelloWorldServer(private val port: Int) {
         }
 
         override suspend fun sendMoney(request: SendMoneyRequest): SendMoneyResponse {
-
+            println("HERE!")
             val src_addr = request.srcAddr
             val dst_addr = request.dstAddr
             val coins_ = request.coins.toULong()
-
+            println(src_addr)
             var grpc_send_money_response = sendMoneyResponse {
                 txId = "-1"
             }
 
             // If Leader in correct shard
-            val available_utxos = utxos.get(src_addr)
+            val available_utxos = utxos[src_addr]
 
             println(available_utxos)
 
@@ -133,7 +129,9 @@ class HelloWorldServer(private val port: Int) {
             var utxo_list = mutableListOf<UTxO>()
 
             if (available_utxos != null) {
+                println("available utxos")
                 for (utxo in available_utxos) {
+                    println(utxo)
                     sumUTxOs += utxo.coins.toULong()
                     utxo_list.add(utxo)
                     if (sumUTxOs >= coins_)
@@ -142,10 +140,10 @@ class HelloWorldServer(private val port: Int) {
             }
 
             if (sumUTxOs < coins_) {
+                println(coins_)
+                print("oops")
                 return grpc_send_money_response
             }
-
-            // TODO - call id_gen func
             val tx_id = UUID.randomUUID().toString()
 
             val transfers = mutableListOf<Tr>()
@@ -163,12 +161,6 @@ class HelloWorldServer(private val port: Int) {
                     }
                 )
             }
-
-//            val javaTimeInstant = System.currentTimeMillis().toInstant()
-//            val ts = com.google.protobuf.Timestamp.newBuilder()
-//                .setSeconds(javaTimeInstant.epochSecond)
-//                .setNanos(javaTimeInstant.nano)
-//                .build()
 
             // add to ledger in current shard
             val new_tx = tx {

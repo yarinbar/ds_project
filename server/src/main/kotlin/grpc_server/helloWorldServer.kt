@@ -1,12 +1,12 @@
 package com.kotlingrpc.demoGrpc.generated.main.grpckt.com.kotlingrpc.demoGrpc
 
 
+import com.google.protobuf.util.Timestamps.fromMillis
 import io.grpc.Server
 import io.grpc.ServerBuilder
 import messages.*
-import messages.GrpcRequests.*
-import java.sql.Timestamp
-import java.time.OffsetDateTime
+import java.util.*
+import kotlin.collections.HashMap
 
 
 class HelloWorldServer(private val port: Int) {
@@ -27,14 +27,18 @@ class HelloWorldServer(private val port: Int) {
 
         println("Creating genesis UTxO")
 
-//        val tx_id = 0.toString()
-//        val addr = 0.toString()
-//
-//        val new_utxo = UTxO(tx_id, addr)
-//        val new_utxo_w_val = UTxOWithValue(new_utxo, 100.toULong())
-//
-//        utxos.put(addr, mutableListOf(new_utxo_w_val))
-//        println("Created genesis UTxO")
+        val tx_id = "0x00000000001"
+        val addr = "0000"
+
+        // genesis
+        val new_utxo = uTxO {
+            this.txId = tx_id
+            this.addr = addr
+            this.coins = 100
+        }
+
+        utxos.put(addr, mutableListOf(new_utxo))
+        println("Created genesis UTxO")
 
 
         Runtime.getRuntime().addShutdownHook(
@@ -86,7 +90,6 @@ class HelloWorldServer(private val port: Int) {
             }
 
             val grpc_ledger_hist = historyResponse {
-                // TODO - figure out why it doesnt work
                 txs.addAll(ledger_hist)
             }
 
@@ -115,7 +118,7 @@ class HelloWorldServer(private val port: Int) {
 
             val src_addr = request.srcAddr
             val dst_addr = request.dstAddr
-            val coins = request.coins.toULong()
+            val coins_ = request.coins.toULong()
 
             var grpc_send_money_response = sendMoneyResponse {
                 txId = "-1"
@@ -131,31 +134,32 @@ class HelloWorldServer(private val port: Int) {
 
             if (available_utxos != null) {
                 for (utxo in available_utxos) {
-                    sumUTxOs+= utxo.coins.toULong()
+                    sumUTxOs += utxo.coins.toULong()
                     utxo_list.add(utxo)
-                    if (sumUTxOs >= coins)
+                    if (sumUTxOs >= coins_)
                         break
                 }
             }
 
-            if (sumUTxOs < coins) {
+            if (sumUTxOs < coins_) {
                 return grpc_send_money_response
             }
 
             // TODO - call id_gen func
-            val tx_id = "noam_and_yarin_want_to_be_over_this!"
+            val tx_id = UUID.randomUUID().toString()
+
             val transfers = mutableListOf<Tr>()
 
             transfers.add(tr {
                 addr = dst_addr
-//                coins = coins
+                coins = coins_.toLong()
             })
 
-            if (sumUTxOs != coins) {
+            if (sumUTxOs != coins_) {
                 transfers.add(
                     tr {
                         addr = src_addr
-//                        coins = sumUTxOs - coins
+                        coins = (sumUTxOs - coins_).toLong()
                     }
                 )
             }
@@ -171,7 +175,7 @@ class HelloWorldServer(private val port: Int) {
                 txId = tx_id
                 inputs.addAll(utxo_list)
                 outputs.addAll(transfers)
-//                timestamp = Timestamp(System.currentTimeMillis())
+                timestamp = fromMillis(System.currentTimeMillis())
             }
             if (ledger.containsKey(src_addr)){
                 ledger.get(src_addr)?.add(new_tx)
@@ -187,14 +191,14 @@ class HelloWorldServer(private val port: Int) {
                 val induced_utxo = uTxO {
                     txId = tx_id
                     addr = tr.addr
-//                    coins = tr.coins
+                    coins = tr.coins
                 }
 
                 // TODO - fix this
                 if (shard == shard) {
                     // add to utxo hashmap, check if addr is already mapped first
-                    if (utxos.containsKey(src_addr)) {
-                        utxos.get(src_addr)?.add(induced_utxo)
+                    if (utxos.containsKey(tr.addr)) {
+                        utxos.get(tr.addr)?.add(induced_utxo)
                     } else {
                         utxos.put(tr.addr, mutableListOf(induced_utxo))
                     }
@@ -203,8 +207,8 @@ class HelloWorldServer(private val port: Int) {
                 }
 
             }
+
             //remove used utxos
-            print(available_utxos)
             if (available_utxos != null) {
                 var utxo_to_delete = mutableListOf<UTxO>()
                 for (utxo in available_utxos){
@@ -216,8 +220,10 @@ class HelloWorldServer(private val port: Int) {
                 }
             }
 
+            println(utxos)
+
             grpc_send_money_response = sendMoneyResponse {
-                txId = "success mother fucker"
+                txId = tx_id
             }
             return grpc_send_money_response
         }

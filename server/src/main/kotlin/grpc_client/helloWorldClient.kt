@@ -112,7 +112,7 @@ class HelloWorldClient(private val channel: ManagedChannel) : Closeable {
  * Greeter, uses first argument as name to greet if present;
  * greets "world" otherwise.
  */
-suspend fun main(args: Array<String>) {
+suspend fun main3(args: Array<String>) {
     val port = 50051
 
     val channel = ManagedChannelBuilder.forAddress("localhost", port).usePlaintext().build()

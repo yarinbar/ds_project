@@ -6,6 +6,6 @@ import org.springframework.boot.runApplication
 @SpringBootApplication
 class SpringBootBoilerplateApplication
 
-fun main(args: Array<String>) {
+fun main4(args: Array<String>) {
 	runApplication<SpringBootBoilerplateApplication>(*args)
 }

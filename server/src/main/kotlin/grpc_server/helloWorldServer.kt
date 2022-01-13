@@ -232,7 +232,7 @@ class HelloWorldServer(private val port: Int) {
     }
 }
 
-fun main() {
+fun main2() {
     val port = System.getenv("PORT")?.toInt() ?: 50051
     val server = HelloWorldServer(port)
     server.start()

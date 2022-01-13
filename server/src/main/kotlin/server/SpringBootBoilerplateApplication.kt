@@ -9,6 +9,8 @@ class SpringBootBoilerplateApplication
 
 fun main(args: Array<String>) {
 
+	println("I woke up and I am feeling fine as fuck")
+
 	runApplication<SpringBootBoilerplateApplication>(*args)
 	val port = System.getenv("PORT")?.toInt() ?: 50051
 	val server = HelloWorldServer(port)

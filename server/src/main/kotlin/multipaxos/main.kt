@@ -12,7 +12,7 @@ val biSerializer = object : ByteStringBiSerializer<String> {
         .toStringUtf8()!!
 }
 
-suspend fun main(args: Array<String>) = coroutineScope {
+suspend fun main1(args: Array<String>) = coroutineScope {
 
     // Displays all debug messages from gRPC
     org.apache.log4j.BasicConfigurator.configure()

@@ -9,11 +9,12 @@ import java.util.*
 import kotlin.collections.HashMap
 
 
-class HelloWorldServer(private val port: Int) {
-    var utxos: HashMap<String, MutableList<UTxO>> = HashMap<String,MutableList<UTxO>> ()
-    var ledger: HashMap<String, MutableList<Tx>> = HashMap<String,MutableList<Tx>> ()
-    val shard : Int = 0
-    val num_shards : Int = 2
+class HelloWorldServer(private val ip: String, private val shard: Int, private val n_shards: Int, private val port: Int) {
+    var utxos: HashMap<String, MutableList<UTxO>> = HashMap()
+    var ledger: HashMap<String, MutableList<Tx>> = HashMap()
+    var my_shard : Int = shard
+    var num_shards : Int = n_shards
+    var my_ip : String = ip
 
     val server: Server = ServerBuilder
         .forPort(port)
@@ -23,7 +24,11 @@ class HelloWorldServer(private val port: Int) {
 
     fun start() {
         server.start()
+
+        println("My ip is ${this.my_ip}")
+        println("Joining shard ${this.my_shard}")
         println("Server started, listening on $port")
+
         println("Creating genesis UTxO")
 
         val tx_id = "0x00000000001"
@@ -53,6 +58,8 @@ class HelloWorldServer(private val port: Int) {
         server.shutdown()
     }
 
+
+
     fun blockUntilShutdown() {
         server.awaitTermination()
     }
@@ -69,6 +76,12 @@ class HelloWorldServer(private val port: Int) {
 
 
     inner class UserServices : UserServicesGrpcKt.UserServicesCoroutineImplBase(){
+
+        fun find_addr_shard(addr : String) : Int{
+            val int_addr = addr.toBigInteger()
+            return int_addr.mod(num_shards.toBigInteger()).toInt()
+        }
+
         override suspend fun getHistory(request: HistoryRequest): HistoryResponse {
 
             val addr = request.addr
@@ -230,11 +243,4 @@ class HelloWorldServer(private val port: Int) {
             return super.sendInducedUTxO(request)
         }
     }
-}
-
-fun main2() {
-    val port = System.getenv("PORT")?.toInt() ?: 50051
-    val server = HelloWorldServer(port)
-    server.start()
-    server.blockUntilShutdown()
 }

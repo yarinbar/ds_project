@@ -9,7 +9,8 @@ import io.grpc.ServerBuilder
 import messages.*
 import java.util.*
 import kotlin.collections.HashMap
-
+import zookeeper.kotlin.ZookeeperKtClient
+import zookeeper.kotlin.ZooKeeperKt
 
 class HelloWorldServer(private val ip: String, private val shard: Int, private val port: Int) {
     var utxos: HashMap<String, MutableList<UTxO>> = HashMap()
@@ -17,6 +18,8 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
     var my_shard : Int = shard
     var num_shards : Int = System.getenv("NUM_SHARDS").toInt()
     var my_ip : String = ip
+
+//    var zkc = ZookeeperKtClient()
 
     val server: Server = ServerBuilder
         .forPort(port)
@@ -130,7 +133,7 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
             if (my_shard == find_addr_shard( request.srcAddr)) {
                 return sendMoneyImp(request)
             }
-            val target_ip = "localhost" // GET FROM ZOOKEEPER
+            val target_ip = "172.17.0.3" // GET FROM ZOOKEEPER
             val channel = ManagedChannelBuilder.forAddress(target_ip, 50051).usePlaintext().build()
             val client = HelloWorldClient(channel)
             return client.send_money(request.srcAddr,request.dstAddr,request.coins.toUInt())

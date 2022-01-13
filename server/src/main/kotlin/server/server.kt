@@ -15,7 +15,7 @@ class TransactionsManager {
 
       fun sendCoins(src_addr: String, dst_addr: String, coins: UInt) : String = runBlocking {
         println("here")
-        val txid = client.send_money(src_addr = src_addr, dst_addr = dst_addr, coins = coins)
+        val txid = client.send_money(src_addr = src_addr, dst_addr = dst_addr, coins = coins).txId
           return@runBlocking txid
     }
 }

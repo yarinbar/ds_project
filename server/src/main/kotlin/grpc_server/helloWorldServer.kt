@@ -2,6 +2,8 @@ package grpc_server
 
 
 import com.google.protobuf.util.Timestamps.fromMillis
+import com.kotlingrpc.demoGrpc.generated.main.grpckt.com.kotlingrpc.demoGrpc.HelloWorldClient
+import io.grpc.ManagedChannelBuilder
 import io.grpc.Server
 import io.grpc.ServerBuilder
 import messages.*
@@ -9,11 +11,11 @@ import java.util.*
 import kotlin.collections.HashMap
 
 
-class HelloWorldServer(private val ip: String, private val shard: Int, private val n_shards: Int, private val port: Int) {
+class HelloWorldServer(private val ip: String, private val shard: Int, private val port: Int) {
     var utxos: HashMap<String, MutableList<UTxO>> = HashMap()
     var ledger: HashMap<String, MutableList<Tx>> = HashMap()
     var my_shard : Int = shard
-    var num_shards : Int = n_shards
+    var num_shards : Int = System.getenv("NUM_SHARDS").toInt()
     var my_ip : String = ip
 
     val server: Server = ServerBuilder
@@ -122,8 +124,21 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
             }
             return grpc_utxos_hist
         }
-
         override suspend fun sendMoney(request: SendMoneyRequest): SendMoneyResponse {
+            println("SEND MONEY SERVER")
+
+            if (my_shard == find_addr_shard( request.srcAddr)) {
+                return sendMoneyImp(request)
+            }
+            val target_ip = "localhost" // GET FROM ZOOKEEPER
+            val channel = ManagedChannelBuilder.forAddress(target_ip, 50051).usePlaintext().build()
+            val client = HelloWorldClient(channel)
+            return client.send_money(request.srcAddr,request.dstAddr,request.coins.toUInt())
+        }
+
+        fun sendMoneyImp(request: SendMoneyRequest): SendMoneyResponse {
+            println("SEND MONEY IMP")
+
             println("HERE!")
             val src_addr = request.srcAddr
             val dst_addr = request.dstAddr

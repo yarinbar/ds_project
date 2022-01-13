@@ -22,8 +22,7 @@ fun main(args: Array<String>) {
 	}
 
 	runApplication<SpringBootBoilerplateApplication>(*args)
-	val port = System.getenv("PORT")?.toInt() ?: 50051
-	var shard: Int = (System.getenv("SHARD") ?: "0").toInt()
+	var port = System.getenv("PORT")?.toInt() ?: 50051
 	var shard: Int = (System.getenv("SHARD") ?: "0").toInt()
 	val server = HelloWorldServer(ip, shard, port)
 

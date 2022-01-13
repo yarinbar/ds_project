@@ -1,19 +1,24 @@
 package com.kotlingrpc.demoGrpc.generated.main.grpckt.com.kotlingrpc.demoGrpc
 
-import com.google.protobuf.stringValue
-import com.kotlingrpc.demoGrpc.GreeterGrpcKt
-import messages.*
 import io.grpc.ManagedChannel
 import io.grpc.ManagedChannelBuilder
+import messages.*
 import java.io.Closeable
 import java.util.concurrent.TimeUnit
-import javax.swing.text.StyledEditorKit
 import kotlin.math.min
+import kotlin.reflect.jvm.internal.impl.builtins.StandardNames.FqNames.target
+
 
 class HelloWorldClient(private val channel: ManagedChannel) : Closeable {
 
     private val public_stub : UserServicesGrpcKt.UserServicesCoroutineStub = UserServicesGrpcKt.UserServicesCoroutineStub(channel)
     private val internal_stub : InternalServicesGrpcKt.InternalServicesCoroutineStub = InternalServicesGrpcKt.InternalServicesCoroutineStub(channel)
+    var num_shards : Int = System.getenv("NUM_SHARDS").toInt()
+
+    fun find_addr_shard(addr : String) : Int{
+        val int_addr = addr.toBigInteger()
+        return int_addr.mod(num_shards.toBigInteger()).toInt()
+    }
 
     suspend fun get_history(addr: String, n: Int) : List<Tx>{
 
@@ -34,14 +39,14 @@ class HelloWorldClient(private val channel: ManagedChannel) : Closeable {
 
 
         // specific address that is not in shard
-        if ((addr.toBigInteger() % num_shards.toBigInteger()).toInt() != shard){
-            println("That is not my shard, forwarding to correct shard")
-            // TODO - forward to correct shard
-            val empty_response = HistoryResponse.newBuilder()
-                .build()
-
-            return empty_response.txsList
-        }
+//        if ((addr.toBigInteger() % num_shards.toBigInteger()).toInt() != shard){
+//            println("That is not my shard, forwarding to correct shard")
+//            // TODO - forward to correct shard
+//            val empty_response = HistoryResponse.newBuilder()
+//                .build()
+//
+//            return empty_response.txsList
+//        }
 
         println("That address is in my shard, fetching the relevant txs")
         val history = public_stub.getHistory(request)
@@ -63,12 +68,14 @@ class HelloWorldClient(private val channel: ManagedChannel) : Closeable {
         return n_history_list
     }
 
-      suspend fun send_money(src_addr: String, dst_addr: String, coins: UInt) : String{
-
+      suspend fun send_money(src_addr: String, dst_addr: String, coins: UInt) : SendMoneyResponse{
+        println("SEND MONEY CLIENT")
         if (coins.toInt() == 0){
-            return "invalid coin amount, only takes positive ints"
+            var grpc_send_money_response = sendMoneyResponse {
+                txId = "-1"
+            }
+            return grpc_send_money_response
         }
-
         val send_money_request = SendMoneyRequest.newBuilder()
             .setSrcAddr(src_addr)
             .setDstAddr(dst_addr)
@@ -78,7 +85,7 @@ class HelloWorldClient(private val channel: ManagedChannel) : Closeable {
         println("Attempting to send ${coins} coins from ${src_addr} to ${dst_addr}")
         val send_money_response = public_stub.sendMoney(request = send_money_request)
         println("Sent with tx_id ${send_money_response.txId}")
-        return send_money_response.txId
+        return send_money_response
     }
 
 

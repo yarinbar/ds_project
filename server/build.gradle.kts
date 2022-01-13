@@ -1,6 +1,6 @@
 plugins {
     application
-    kotlin("jvm")// version "1.5.30"
+    kotlin("jvm") // version "1.5.30"
     idea
 
     // val kotlinVersion = "1.4.31"

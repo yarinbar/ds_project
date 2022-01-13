@@ -11,9 +11,11 @@ import java.util.*
 import kotlin.collections.HashMap
 import zookeeper.kotlin.ZookeeperKtClient
 import kotlinx.coroutines.runBlocking
-import zookeeper.kotlin.ZooKeeperKt
+import zookeeper.kotlin.*
 import org.apache.zookeeper.ZooKeeper
+import org.apache.zookeeper.data.Stat
 import java.net.InetAddress
+
 
 class HelloWorldServer(private val ip: String, private val shard: Int, private val port: Int) {
     var utxos: HashMap<String, MutableList<UTxO>> = HashMap()
@@ -47,8 +49,11 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
         val tx_id = "0x00000000001"
         val addr = "0000"
 
-        zk.create("${my_shard}/${my_ip}", null, null, null)
-
+        println("registering with ZK")
+        val create_op = CreateOperation("${my_shard}/${my_ip}", CreateFlags.Ephemeral)
+        zk.create("/${my_shard}/${my_ip}", create_op.data, create_op.acl, create_op.flags.zkCreateMode, Stat())!!
+//        zkc.create(a)
+        println("DONE registering with ZK")
         // genesis
         val new_utxo = uTxO {
             this.txId = tx_id
@@ -72,8 +77,6 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
     private fun stop() {
         server.shutdown()
     }
-
-
 
     fun blockUntilShutdown() {
         server.awaitTermination()

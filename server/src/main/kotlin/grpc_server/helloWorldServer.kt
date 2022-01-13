@@ -10,7 +10,10 @@ import messages.*
 import java.util.*
 import kotlin.collections.HashMap
 import zookeeper.kotlin.ZookeeperKtClient
+import kotlinx.coroutines.runBlocking
 import zookeeper.kotlin.ZooKeeperKt
+import org.apache.zookeeper.ZooKeeper
+import java.net.InetAddress
 
 class HelloWorldServer(private val ip: String, private val shard: Int, private val port: Int) {
     var utxos: HashMap<String, MutableList<UTxO>> = HashMap()
@@ -19,7 +22,11 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
     var num_shards : Int = System.getenv("NUM_SHARDS").toInt()
     var my_ip : String = ip
 
-//    var zkc = ZookeeperKtClient()
+    // TODO - check this
+
+    var zk_host = InetAddress.getByName("zoo1.zk.local")
+    var zk = ZooKeeper("${zk_host.hostAddress}:2181", 1000, null)
+//    var zkc = ZookeeperKtClient(zk)
 
     val server: Server = ServerBuilder
         .forPort(port)
@@ -28,6 +35,7 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
         .build()
 
     fun start() {
+        println("This is the zk address ${this.zk_host.hostAddress}")
         server.start()
 
         println("My ip is ${this.my_ip}")
@@ -38,6 +46,8 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
 
         val tx_id = "0x00000000001"
         val addr = "0000"
+
+        zk.create("${my_shard}/${my_ip}", null, null, null)
 
         // genesis
         val new_utxo = uTxO {
@@ -68,17 +78,6 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
     fun blockUntilShutdown() {
         server.awaitTermination()
     }
-
-//    fun addToTable(id: Int){
-//        val timestamp = Timestamp(System.currentTimeMillis()).toString()
-//        if (req_hash.containsKey(id)){
-//            req_hash.get(id)?.add(timestamp)
-//        }
-//        else {
-//            req_hash.put(id, mutableListOf(timestamp))
-//        }
-//    }
-
 
     inner class UserServices : UserServicesGrpcKt.UserServicesCoroutineImplBase(){
 

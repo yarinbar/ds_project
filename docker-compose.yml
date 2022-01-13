@@ -25,6 +25,42 @@ services:
       - ALLOW_ANONYMOUS_LOGIN=yes
       - ZOO_SERVERS=zoo1.zk.local:2888:3888
 
+  node0:
+    environment:
+      - SHARD=0
+    build: .
+    ports:
+      - 10000:8080
+    networks:
+      - zookeeper
+
+  node1:
+    environment:
+      - SHARD=1
+    build: .
+    ports:
+      - 10001:8080
+    networks:
+      - zookeeper
+
+  node2:
+    environment:
+      - SHARD=2
+    build: .
+    ports:
+      - 10002:8080
+    networks:
+      - zookeeper
+
+  node3:
+    environment:
+      - SHARD=3
+    build: .
+    ports:
+      - 10003:8080
+    networks:
+      - zookeeper
+
   zoonavigator:
     image: elkozmon/zoonavigator:1.1.1
     hostname: navigator.zk.local

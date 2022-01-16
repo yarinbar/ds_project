@@ -55,7 +55,7 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
     val zkc =  ZookeeperKtClient(zk)
 
     suspend fun get_shard_leader1(shard_incharge: Int) : String {
-        println("trying to locate the correct shard's leader (shard ${shard_incharge}")
+        println("trying to locate the correct shard's leader (shard ${shard_incharge})")
         val path="/SHARD_${shard_incharge}"
         val children = zk.getChildren(path,false)
             .sortedBy { ZKPaths.extractSequentialSuffix(it)!! }
@@ -165,18 +165,23 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
 
         override suspend fun sendMoney(request: SendMoneyRequest): SendMoneyResponse {
             println("SEND MONEY SERVER")
-            val shard_incharge=find_addr_shard(request.srcAddr)
-            val shard_leader = get_shard_leader1(shard_incharge)
-            if (my_shard == shard_incharge && my_ip == shard_leader) {
-                println("Correct shard, handling request")
+//            val shard_incharge = find_addr_shard(request.srcAddr)
+            val shard_leader = get_shard_leader1(find_addr_shard(request.srcAddr))
+            if (my_ip == shard_leader) {
+                println("Correct node, handling request")
                 return sendMoneyImp(request)
             }
-            println("Wrong shard or not leader!!! send to shard ${shard_incharge} address ${shard_leader}")
+            println("Wrong shard or not the leader! send to address ${shard_leader}")
             val target_ip = shard_leader
             val channel = ManagedChannelBuilder.forAddress(target_ip, 50051).usePlaintext().build()
             val client = HelloWorldClient(channel)
             return client.send_money(request.srcAddr, request.dstAddr, request.coins.toUInt())
         }
+
+//        fun sendInductUtxos(utxo:UTxO,dst_addr:String):Boolean{
+////            TODO find leader
+//
+//        }
 
         fun sendMoneyImp(request: SendMoneyRequest): SendMoneyResponse {
             println("SEND MONEY IMP")
@@ -251,7 +256,9 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
                 }
 
                 // TODO - fix this
-                if (shard == shard) {
+                if (induced_utxo.addr==src_addr) {
+//                     TODO send to leader??
+                    println("Induced utxo in same shard, adding it")
                     // add to utxo hashmap, check if addr is already mapped first
                     if (utxos.containsKey(tr.addr)) {
                         utxos.get(tr.addr)?.add(induced_utxo)
@@ -259,7 +266,8 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
                         utxos.put(tr.addr, mutableListOf(induced_utxo))
                     }
                 } else {
-                    // TODO - transfer to correct shard
+                    println("Induced utxo in another shard, adding it there")
+//                    sendInductUtxos(induced_utxo,dst_addr)
                 }
             }
 

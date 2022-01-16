@@ -1,7 +1,6 @@
 plugins {
     id("com.google.protobuf") version "0.8.17" apply false
     kotlin("jvm") version "1.5.31" apply false
-    id("org.jlleitschuh.gradle.ktlint") version "10.2.0"
     idea
 }
 
@@ -20,7 +19,6 @@ allprojects {
         google()
     }
 
-    apply(plugin = "org.jlleitschuh.gradle.ktlint")
     apply(plugin = "idea")
 }
 

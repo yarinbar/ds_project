@@ -12,13 +12,9 @@ import kotlin.reflect.jvm.internal.impl.builtins.StandardNames.FqNames.target
 class HelloWorldClient(private val channel: ManagedChannel) : Closeable {
 
     private val public_stub : UserServicesGrpcKt.UserServicesCoroutineStub = UserServicesGrpcKt.UserServicesCoroutineStub(channel)
-    private val internal_stub : InternalServicesGrpcKt.InternalServicesCoroutineStub = InternalServicesGrpcKt.InternalServicesCoroutineStub(channel)
     var num_shards : Int = System.getenv("NUM_SHARDS").toInt()
 
-    fun find_addr_shard(addr : String) : Int{
-        val int_addr = addr.toBigInteger()
-        return int_addr.mod(num_shards.toBigInteger()).toInt()
-    }
+
 
     suspend fun get_history(addr: String, n: Int) : List<Tx>{
 
@@ -68,6 +64,11 @@ class HelloWorldClient(private val channel: ManagedChannel) : Closeable {
         return n_history_list
     }
 
+    suspend fun send_induced_utxo(uTxO: UTxO) : InternalResponse{
+        println("Reaching out to shard to add utxos")
+        val send_utxo_response = public_stub.sendInducedUTxO(uTxO)
+        return send_utxo_response
+    }
       suspend fun send_money(src_addr: String, dst_addr: String, coins: UInt) : SendMoneyResponse{
         println("SEND MONEY CLIENT")
         if (coins.toInt() == 0){
@@ -87,7 +88,17 @@ class HelloWorldClient(private val channel: ManagedChannel) : Closeable {
         println("Sent with tx_id ${send_money_response.txId}")
         return send_money_response
     }
-
+    suspend fun getUtxos(addr: String,limit:Int):UTxOResponse{
+        println("GET UTXOS CLIENT")
+        val get_utxo_request = UTxORequest.newBuilder().setAddr(addr).setLimit(
+            limit.toLong()
+        ).build()
+        println("getting utxos for ${addr}")
+        val get_utxo_response = public_stub.getUTxOs(request = get_utxo_request)
+        print("GOT UTXOS!")
+        println(get_utxo_response.utxosList.take(limit))
+        return get_utxo_response
+    }
 
     override fun close() {
         channel.shutdown().awaitTermination(5, TimeUnit.SECONDS)

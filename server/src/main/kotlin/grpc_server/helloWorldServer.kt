@@ -19,6 +19,8 @@ import java.net.InetAddress
 import zookeeper.kotlin.checkExistenceOperation
 import zookeeper.kotlin.createflags.Ephemeral
 import zookeeper.kotlin.createflags.Sequential
+import zookeeper.kotlin.createflags.Persistent
+
 
 class HelloWorldServer(private val ip: String, private val shard: Int, private val port: Int) {
     var utxos: HashMap<String, MutableList<UTxO>> = HashMap()
@@ -27,19 +29,13 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
     var num_shards: Int = System.getenv("NUM_SHARDS").toInt()
     var my_ip: String = ip
 
-    // TODO - check this
-//
-//    var zk = ZooKeeper("${zk_host.hostAddress}:2181", 1000, null)
-//    var zkc = ZookeeperKtClient(zk)
-//    val membership = Membership.make((zkc,"SHARD0"))
-
     val server: Server = ServerBuilder
         .forPort(port)
         .addService(UserServices())
         .addService(InternalServices())
         .build()
 
-    fun get_zk_client():ZookeeperKtClient{
+    fun get_zk():ZooKeeper{
         var zk_host = InetAddress.getByName("zoo1.zk.local")
         println("This is the zk address ${zk_host.hostAddress}")
         var zkConnectionString = "${zk_host.hostAddress}:2181"
@@ -53,49 +49,48 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
             }
         }
         println("--- Connected to ZooKeeper")
-        return ZookeeperKtClient(zk)
+        return zk
     }
-    val zkc = get_zk_client()
+    val zk = get_zk()
+    val zkc =  ZookeeperKtClient(zk)
+
+    suspend fun get_shard_leader1(shard_incharge: Int) : String {
+        println("trying to locate the correct shard's leader (shard ${shard_incharge}")
+        val path="/SHARD_${shard_incharge}"
+        val children = zk.getChildren(path,false)
+            .sortedBy { ZKPaths.extractSequentialSuffix(it)!! }
+        var delimiter = "_"
+        return children.first().toString().split(delimiter)[0]
+    }
 
     suspend fun start() {
         server.start()
-//        var zk_host = InetAddress.getByName("zoo1.zk.local")
-//        println("This is the zk address ${zk_host.hostAddress}")
-//        var zkConnectionString = "${zk_host.hostAddress}:2181"
-//        println("--- Connecting to ZooKeeper @ $zkConnectionString")
-//        val chan = Channel<Unit>()
-//        val zk = ZooKeeper(zkConnectionString, 1000) { event ->
-//            if (event.state == Watcher.Event.KeeperState.SyncConnected &&
-//                event.type == Watcher.Event.EventType.None
-//            ) {
-//                runBlocking { chan.send(Unit) }
-//            }
-//        }
-//        chan.receive()
-//        println("--- Connected to ZooKeeper")
-//        var zkc = ZookeeperKtClient(zk)
+        println("registering with ZK")
 
-//
-        println("joining the shard")
+        println("My ip is ${this.my_ip}")
+
+        val existing_shards = zkc.getChildren("/").first
+        if ("SHARD_${my_shard}" !in existing_shards)
+            {
+            println("Shard ${this.my_shard} doesn't exist, creating it")
+            val (_, _) = zkc.create {
+                path = "/SHARD_${my_shard}"
+                flags = Persistent}
+            }
+        println("Joining shard ${this.my_shard}.")
         val (_, _) = zkc.create {
             path = "/SHARD_${my_shard}/${my_ip}_"
             flags = Ephemeral and Sequential}
-
-
-        println("My ip is ${this.my_ip}")
-        println("Joining shard ${this.my_shard}")
-        println("Server started, listening on $port")
-        println("UPDAaTED- looking for shard should print true")
-
-        println("Creating genesis UTxO")
-
-        val tx_id = "0x00000000001"
-        val addr = "0000"
-
-        println("registering with ZK")
         println("DONE registering with ZK")
+
+        println("Server started, listening on $port")
+
+
         // genesis
         if (my_shard == 0) {
+            println("Server for shard 0, creating genesis UTxO")
+            val tx_id = "0x00000000001"
+            val addr = "0000"
             val new_utxo = uTxO {
                 this.txId = tx_id
                 this.addr = addr
@@ -125,16 +120,7 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
     }
 
     inner class UserServices : UserServicesGrpcKt.UserServicesCoroutineImplBase() {
-        suspend fun get_shard_leader(shard_incharge: Int) : String {
-            println("trying to locate shardd")
-            val path="/SHARD_${shard_incharge}/"
-            println(path)
-            val seqNos = zkc.getChildren(path)
-            println(0)
-            println(seqNos)
-            println(1)
-            return seqNos.toString()
-        }
+
         fun find_addr_shard(addr: String): Int {
             val int_addr = addr.toBigInteger()
             return int_addr.mod(num_shards.toBigInteger()).toInt()
@@ -143,9 +129,7 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
         override suspend fun getHistory(request: HistoryRequest): HistoryResponse {
 
             val addr = request.addr
-
             val ledger_hist: List<Tx>
-
             if (addr == "") {
                 ledger_hist = ledger.values.toList().flatten()
             } else {
@@ -182,11 +166,13 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
         override suspend fun sendMoney(request: SendMoneyRequest): SendMoneyResponse {
             println("SEND MONEY SERVER")
             val shard_incharge=find_addr_shard(request.srcAddr)
-            if (my_shard == shard_incharge) {
+            val shard_leader = get_shard_leader1(shard_incharge)
+            if (my_shard == shard_incharge && my_ip == shard_leader) {
+                println("Correct shard, handling request")
                 return sendMoneyImp(request)
             }
-            println("WRONG SHARD!!! send to ${shard_incharge}")
-            val target_ip = get_shard_leader(shard_incharge) // GET FROM ZOOKEEPER
+            println("Wrong shard or not leader!!! send to shard ${shard_incharge} address ${shard_leader}")
+            val target_ip = shard_leader
             val channel = ManagedChannelBuilder.forAddress(target_ip, 50051).usePlaintext().build()
             val client = HelloWorldClient(channel)
             return client.send_money(request.srcAddr, request.dstAddr, request.coins.toUInt())
@@ -194,8 +180,6 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
 
         fun sendMoneyImp(request: SendMoneyRequest): SendMoneyResponse {
             println("SEND MONEY IMP")
-
-            println("HERE!")
             val src_addr = request.srcAddr
             val dst_addr = request.dstAddr
             val coins_ = request.coins.toULong()
@@ -206,9 +190,7 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
 
             // If Leader in correct shard
             val available_utxos = utxos[src_addr]
-
             println(available_utxos)
-
             var sumUTxOs = 0.toULong()
             var utxo_list = mutableListOf<UTxO>()
 

@@ -34,6 +34,14 @@ class TransactionsManager {
         println(utxos)
         return@runBlocking utxos.toString()
     }
+
+    fun getAddrHistory(addr: String,n:Int=-1):String = runBlocking{
+        println("Getting history for address ${addr}")
+        val hist = client.getAddrHistory(addr,n).txsList
+        println("succeeded")
+        println(hist)
+        return@runBlocking hist.toString()
+    }
 }
 
 
@@ -50,14 +58,14 @@ class TMController(private val transactionsManager: TransactionsManager) {
     fun getUTxOs(@PathVariable("addr") addr: String, @PathVariable("n")n:Int): String? {
         return transactionsManager.getUtxos(addr,n)}
 //
-//    @GetMapping("/ledger/{addr}/{n}")
-//    fun getLedgerHistory(@PathVariable("addr") addr: String, @PathVariable("n")n:Int): List<Tx>? =
-//        transactionsManager.getAddrHistory(addr,n)
-//
-//
-//    @GetMapping("/ledger/{addr}")
-//    fun getLedgerHistory(@PathVariable("addr") addr: String): List<Tx>? =
-//        transactionsManager.getAddrHistory(addr)
+    @GetMapping("/ledger/{addr}/{n}")
+    fun getLedgerHistory(@PathVariable("addr") addr: String, @PathVariable("n")n:Int): String =
+        transactionsManager.getAddrHistory(addr,n)
+
+
+    @GetMapping("/ledger/{addr}")
+    fun getLedgerHistory(@PathVariable("addr") addr: String): String =
+        transactionsManager.getAddrHistory(addr)
 
 
     @PostMapping("/sendCoins")

@@ -89,17 +89,25 @@ class HelloWorldClient(private val channel: ManagedChannel) : Closeable {
         return send_money_response
     }
     suspend fun getUtxos(addr: String,limit:Int):UTxOResponse{
-        println("GET UTXOS CLIENT")
+        println("GET ${limit} UTXOS CLIENT")
         val get_utxo_request = UTxORequest.newBuilder().setAddr(addr).setLimit(
             limit.toLong()
         ).build()
         println("getting utxos for ${addr}")
         val get_utxo_response = public_stub.getUTxOs(request = get_utxo_request)
         print("GOT UTXOS!")
-        println(get_utxo_response.utxosList.take(limit))
         return get_utxo_response
     }
-
+    suspend fun getAddrHistory(addr:String,limit:Int):HistoryResponse{
+        println("GET HISTORY CLIENT")
+        val get_history_request = HistoryRequest.newBuilder().setAddr(addr).setLimit(
+            limit.toLong()
+        ).build()
+        println("getting history for ${addr}")
+        val get_history_response = public_stub.getHistory(request = get_history_request)
+        print("GOT history!")
+        return get_history_response
+    }
     override fun close() {
         channel.shutdown().awaitTermination(5, TimeUnit.SECONDS)
     }

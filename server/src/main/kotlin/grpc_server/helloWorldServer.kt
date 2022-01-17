@@ -50,7 +50,7 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
     val zk = get_zk()
     val zkc =  ZookeeperKtClient(zk)
 
-    suspend fun get_shard_leader1(shard_incharge: Int) : String {
+    fun get_shard_leader1(shard_incharge: Int) : String {
         println("trying to locate the correct shard's leader (shard ${shard_incharge})")
         val path="/SHARD_${shard_incharge}"
         val children = zk.getChildren(path,false)
@@ -122,27 +122,66 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
             return int_addr.mod(num_shards.toBigInteger()).toInt()
         }
 
-        override suspend fun getHistory(request: HistoryRequest): HistoryResponse {
-            val addr = request.addr
-            val ledger_hist: List<Tx>
-            if (addr == "") {
-                ledger_hist = ledger.values.toList().flatten()
-            } else {
-                val addr_history = ledger.get(addr)
+//        override suspend fun getHhistory(request: HistoryRequest): HistoryResponse {
+//            val addr = request.addr
+//            val ledger_hist: List<Tx>
+//            if (addr == "") {
+//                ledger_hist = ledger.values.toList().flatten()
+//            } else {
+//                val addr_history = ledger.get(addr)
+//
+//                if (addr_history != null)
+//                    ledger_hist = addr_history.toList()
+//                else
+//                    ledger_hist = emptyList()
+//            }
+//
+//            val grpc_ledger_hist = historyResponse {
+//                txs.addAll(ledger_hist)
+//            }
+//
+//            return grpc_ledger_hist
+//        }
 
-                if (addr_history != null)
-                    ledger_hist = addr_history.toList()
-                else
-                    ledger_hist = emptyList()
+        override suspend fun getHistory(request: HistoryRequest):HistoryResponse{
+            println("GET HISTORY SERVER")
+//            val shard_incharge = find_addr_shard(request.srcAddr)
+            val shard_leader = get_shard_leader1(find_addr_shard(request.addr))
+            if (my_ip == shard_leader) {
+                println("Correct node, handling request")
+                return getHistoryImp(request)
             }
-
-            val grpc_ledger_hist = historyResponse {
-                txs.addAll(ledger_hist)
-            }
-
-            return grpc_ledger_hist
+            println("Wrong shard or not the leader! send to address ${shard_leader}")
+            val target_ip = shard_leader
+            val channel = ManagedChannelBuilder.forAddress(target_ip, 50051).usePlaintext().build()
+            val client = HelloWorldClient(channel)
+            return client.getAddrHistory(request.addr,request.limit.toInt())
         }
 
+        fun getHistoryImp(request: HistoryRequest):HistoryResponse{
+
+            val addr = request.addr
+            println(addr)
+            var tx_hist = emptyList<Tx>()
+            println(tx_hist)
+            val addr_history = ledger[addr]
+            println("ADDR HIST")
+            println(addr_history)
+            if (addr_history != null){
+                tx_hist = addr_history.toList()
+                if (request.limit >=0 ){
+                    println(tx_hist)
+                    tx_hist = tx_hist.take(request.limit.toInt())
+                    println(tx_hist)
+                }
+            }
+
+            val grpc_tx_hist = historyResponse {
+                txs.addAll(tx_hist)
+            }
+            println("HERE")
+            return grpc_tx_hist
+        }
         override suspend fun getUTxOs(request: UTxORequest): UTxOResponse {
 
             println("GET UTXO SERVER")
@@ -171,10 +210,11 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
             if (addr_history != null){
                 utxos_hist = addr_history.toList()
                 if (request.limit >=0 ){
-                    utxos_hist.take(request.limit.toInt())
+                    println(utxos_hist)
+                    utxos_hist = utxos_hist.take(request.limit.toInt())
+                    println(utxos_hist)
                 }
             }
-            println(utxos_hist)
 
             val grpc_utxos_hist = uTxOResponse {
                 utxos.addAll(utxos_hist)

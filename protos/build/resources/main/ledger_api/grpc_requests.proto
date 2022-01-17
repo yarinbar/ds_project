@@ -66,8 +66,5 @@ service UserServices{
   rpc GetUTxOs(UTxORequest) returns (UTxOResponse) {}
   rpc SendMoney(SendMoneyRequest) returns (SendMoneyResponse) {}
   rpc SubmitTx(Tx) returns (SendMoneyResponse) {}
-}
-
-service InternalServices{
-  rpc SendInducedUTxO(UTxO) returns (InternalResponse);
+  rpc SendInducedUTxO(UTxO) returns (InternalResponse){}
 }

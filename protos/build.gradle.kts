@@ -10,3 +10,9 @@ plugins {
 java {
     sourceSets.getByName("main").resources.srcDir("src/main/proto")
 }
+
+configurations.forEach {
+    if (it.name.toLowerCase().contains("proto")) {
+        it.attributes.attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage::class.java, "java-runtime"))
+    }
+}

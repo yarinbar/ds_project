@@ -58,3 +58,8 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
 configurations.all {
     exclude("org.slf4j", "slf4j-log4j12")
 }
+configurations.forEach {
+    if (it.name.toLowerCase().contains("proto")) {
+        it.attributes.attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage::class.java, "java-runtime"))
+    }
+}

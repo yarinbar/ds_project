@@ -108,6 +108,13 @@ class HelloWorldClient(private val channel: ManagedChannel) : Closeable {
         print("GOT history!")
         return get_history_response
     }
+
+    suspend fun submitTx(tx: Tx): SendMoneyResponse{
+        println("HelloWorldClient: submitting transaction to server")
+        val ret = public_stub.submitTx(tx)
+        return ret
+    }
+
     override fun close() {
         channel.shutdown().awaitTermination(5, TimeUnit.SECONDS)
     }

@@ -1,12 +1,16 @@
 package server
 
+import com.google.protobuf.util.Timestamps
 import com.kotlingrpc.demoGrpc.generated.main.grpckt.com.kotlingrpc.demoGrpc.HelloWorldClient
-import grpc_server.HelloWorldServer
 import io.grpc.ManagedChannelBuilder
 import kotlinx.coroutines.runBlocking
 import org.springframework.stereotype.Service
 import org.springframework.web.bind.annotation.*
 import messages.*
+import org.springframework.http.MediaType
+import kotlinx.serialization.*
+import kotlinx.serialization.json.Json
+import kotlin.collections.*
 
 @Service
 class TransactionsManager {
@@ -23,7 +27,7 @@ class TransactionsManager {
     }
 
     fun submitTx(tx:Tx):String = runBlocking {
-        println("submitting tx")
+        val ret = client.submitTx(tx)
         return@runBlocking ("cool")
     }
 
@@ -76,9 +80,51 @@ class TMController(private val transactionsManager: TransactionsManager) {
         return ret
     }
 
+    @Serializable
+    data class SerTr(val addr: String, val coins: Long)
 
-//    @PostMapping("/submitTx")
-//    fun submitTx(@RequestBody tx: Tx ) : String? {
-//        return transactionsManager.submitTx(tx)
-//    }
+
+    @Serializable
+    data class SerUTxO(val tx_id: String, val addr: String)
+
+
+    @Serializable
+    data class SerTx(val tx_id: String, val inputs: MutableList<SerUTxO>, val outputs: MutableList<SerTr>)
+
+    @PostMapping("/submitTx", consumes = arrayOf(MediaType.APPLICATION_JSON_VALUE))
+    fun submitTx(@RequestBody tx: String ) : String? {
+        val decoded_tx = Json { ignoreUnknownKeys = true }.decodeFromString<SerTx>(tx)
+
+        val inputs : MutableList<UTxO> = mutableListOf<UTxO>()
+        val outputs : MutableList<Tr> = mutableListOf<Tr>()
+
+
+        for (utxo in decoded_tx.inputs) {
+            // not adding coins because it adds another validity check
+            inputs.add(uTxO {
+                txId = utxo.tx_id
+                addr = utxo.addr
+            })
+        }
+
+        for (tr in decoded_tx.outputs) {
+            outputs.add(tr {
+                addr = tr.addr
+                coins = tr.coins
+            })
+        }
+
+        val new_tx = tx {
+            txId = decoded_tx.tx_id
+            this.inputs.addAll(inputs)
+            this.outputs.addAll(outputs)
+            timestamp = Timestamps.fromMillis(System.currentTimeMillis())
+        }
+
+        println("Server: submitTx: submitting the following tx request\n${new_tx}")
+
+        val ret = transactionsManager.submitTx(new_tx)
+
+        return tx
+    }
 }

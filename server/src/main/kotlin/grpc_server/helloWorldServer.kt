@@ -122,27 +122,6 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
             return int_addr.mod(num_shards.toBigInteger()).toInt()
         }
 
-//        override suspend fun getHhistory(request: HistoryRequest): HistoryResponse {
-//            val addr = request.addr
-//            val ledger_hist: List<Tx>
-//            if (addr == "") {
-//                ledger_hist = ledger.values.toList().flatten()
-//            } else {
-//                val addr_history = ledger.get(addr)
-//
-//                if (addr_history != null)
-//                    ledger_hist = addr_history.toList()
-//                else
-//                    ledger_hist = emptyList()
-//            }
-//
-//            val grpc_ledger_hist = historyResponse {
-//                txs.addAll(ledger_hist)
-//            }
-//
-//            return grpc_ledger_hist
-//        }
-
         override suspend fun getHistory(request: HistoryRequest):HistoryResponse{
             println("GET HISTORY SERVER")
 //            val shard_incharge = find_addr_shard(request.srcAddr)
@@ -182,6 +161,7 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
             println("HERE")
             return grpc_tx_hist
         }
+
         override suspend fun getUTxOs(request: UTxORequest): UTxOResponse {
 
             println("GET UTXO SERVER")
@@ -197,7 +177,6 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
             val client = HelloWorldClient(channel)
             return client.getUtxos(request.addr,request.limit.toInt())
         }
-
 
         fun getUTxOsImp(request: UTxORequest): UTxOResponse {
             val addr = request.addr
@@ -353,9 +332,71 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
             return grpc_send_money_response
         }
 
-
         override suspend fun submitTx(request: Tx): SendMoneyResponse {
-            return super.submitTx(request)
+            // TODO - check if we need to check for validity
+
+            val inputs = request.inputsList
+            val outputs = request.outputsList
+            if (inputs.size == 0){
+                val grpc_send_money_response = sendMoneyResponse {
+                    txId = "tx needs to include at least 1 utxo"
+                }
+                return grpc_send_money_response
+            }
+
+            println("GOT HERE :0 ${request}")
+            println("GOT HERE :0 ${request.inputsList}")
+            println("GOT HERE :0 ${request.inputsList[0]}")
+            println("GOT HERE :0 ${request.inputsList[0].addr}")
+            println("GOT HERE :0 ${find_addr_shard(request.inputsList[0].addr)}")
+
+            // -------------- Checking if the UTxOs provided are present -------------
+            // Option 1 - we are in the correct shard so we can check this address
+            if (find_addr_shard(request.inputsList[0].addr) == shard){
+                println("GOT HERE :1")
+                var found_all_utxos : Boolean = true
+                val user_utxos = utxos[request.inputsList[0].addr]
+                println("GOT HERE :2")
+                var absent_utxos : MutableList<UTxO> = mutableListOf()
+                println("GOT HERE :3")
+                if (user_utxos == null){
+                    val grpc_send_money_response = sendMoneyResponse {
+                        txId = "no utxos found for ${request.inputsList[0].addr}"
+                    }
+                    return grpc_send_money_response
+                }
+                println("GOT HERE :4")
+                for (utxo in inputs){
+                    if (utxo !in user_utxos){
+                        found_all_utxos = false
+                        absent_utxos.add(utxo)
+                    }
+                }
+
+                if (!found_all_utxos){
+                    val grpc_send_money_response = sendMoneyResponse {
+                        txId = "the following utxos were not found and the action failed:\n${absent_utxos}"
+                    }
+                    return grpc_send_money_response
+                }
+
+            }
+            // option 2 - we are not in the correct shard and need to forward the request
+            else{
+                println("HelloWorldClient: submitTx: Not my shard - not my problem")
+            }
+            println("WTF?")
+
+            println("Got Here!")
+            println(inputs)
+            println(outputs)
+            println("Got Here! :D")
+
+            val grpc_send_money_response = sendMoneyResponse {
+                txId = "-1"
+            }
+
+            return grpc_send_money_response
         }
     }
 }

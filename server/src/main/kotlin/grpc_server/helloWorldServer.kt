@@ -328,7 +328,7 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
                 return sendMoneyResponse {
                     txId = "atomic tx happening"
                 }
-            atomicing=!atomicing
+            atomicing= true
             val inputs = request.inputsList
             val src_addr = request.inputsList[0].addr
 
@@ -390,7 +390,7 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
             println(utxos)
 
             println("HelloWorldServer: submitTxImp: Done successfully!")
-            atomicing=!atomicing
+            atomicing = false
             return sendMoneyResponse {
                 txId = request.txId
             }
@@ -447,11 +447,15 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
             val response_list: MutableList<SendMoneyResponse> = mutableListOf()
 
             for (tx in request.txListList) {
-                toggleAtomicing(tx.inputsList[0])
+                setAtomicingFalse(tx.inputsList[0])
                 response_list.add(submitTx(tx))
-                toggleAtomicing(tx.inputsList[0])
+                setAtomicingTrue(tx.inputsList[0])
 
             }
+
+            for (tx in request.txListList)
+                setAtomicingFalse(tx.inputsList[0])
+
             return atomicTxListResponse { txIdsList.addAll(response_list) }
         }
 
@@ -465,16 +469,17 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
                 println("HERE")
                 if (Collections.frequency(all_utxos_required, utxo) > queryUTxO(utxo).occurrences) {
                     for (utxo in all_utxos_required.distinct()) {
-                        toggleAtomicing(utxo)
+                        setAtomicingFalse(utxo)
                     }
                     return false
                 }
             }
+
             return true
 
         }
 
-        override suspend fun toggleAtomicing(request: UTxO): Empty {
+        override suspend fun setAtomicingFalse(request: UTxO): Empty {
             val src_addr = request.addr
             val target_shard = find_addr_shard(src_addr)
             val shard_leader = get_shard_leader1(target_shard)
@@ -483,7 +488,7 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
             // Option 1 - we are in the correct shard so we can check this address
             if (my_ip == shard_leader) {
                 println("HelloWorldServer: queryUTxO: My shard and I am the leader - setting atomicing back to false")
-                atomicing = !atomicing
+                atomicing = false
                 return empty { }
             }
             // option 2 - we are not in the correct shard and need to forward the request
@@ -491,7 +496,28 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
                 println("HelloWorldServer: queryUTxO: Not my shard or not leader in my shard - not my problem")
                 val channel = ManagedChannelBuilder.forAddress(shard_leader, 50051).usePlaintext().build()
                 val client = HelloWorldClient(channel)
-                return client.toggleAtomicing(request)
+                return client.setAtomicingFalse(request)
+            }
+        }
+
+        override suspend fun setAtomicingTrue(request: UTxO): Empty {
+            val src_addr = request.addr
+            val target_shard = find_addr_shard(src_addr)
+            val shard_leader = get_shard_leader1(target_shard)
+
+            // -------------- Checking if the UTxOs provided are present -------------
+            // Option 1 - we are in the correct shard so we can check this address
+            if (my_ip == shard_leader) {
+                println("HelloWorldServer: queryUTxO: My shard and I am the leader - setting atomicing back to false")
+                atomicing = true
+                return empty { }
+            }
+            // option 2 - we are not in the correct shard and need to forward the request
+            else {
+                println("HelloWorldServer: queryUTxO: Not my shard or not leader in my shard - not my problem")
+                val channel = ManagedChannelBuilder.forAddress(shard_leader, 50051).usePlaintext().build()
+                val client = HelloWorldClient(channel)
+                return client.setAtomicingTrue(request)
             }
         }
 

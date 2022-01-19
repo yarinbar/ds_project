@@ -127,9 +127,13 @@ class HelloWorldClient(private val channel: ManagedChannel) : Closeable {
         val ret = public_stub.queryUTxO(utxo)
         return ret
     }
-    suspend fun toggleAtomicing(utxo: UTxO):Empty  {
-        println("Client - set atomicing")
-        return public_stub.toggleAtomicing(utxo)
+    suspend fun setAtomicingFalse(utxo: UTxO):Empty  {
+        println("Client - set atomicing to false")
+        return public_stub.setAtomicingFalse(utxo)
+    }
+    suspend fun setAtomicingTrue(utxo: UTxO):Empty  {
+        println("Client - set atomicing to true")
+        return public_stub.setAtomicingTrue(utxo)
     }
     override fun close() {
         channel.shutdown().awaitTermination(5, TimeUnit.SECONDS)

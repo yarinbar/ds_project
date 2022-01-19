@@ -81,5 +81,6 @@ service UserServices{
   rpc SubmitAtomicTxList(AtomicTxListRequest) returns (AtomicTxListResponse) {}
   rpc SendInducedUTxO(UTxO) returns (InternalResponse){}
   rpc QueryUTxO(UTxO) returns (QueryUTxOResponse) {}
-  rpc ToggleAtomicing(UTxO) returns (google.protobuf.Empty){}
+  rpc SetAtomicingFalse(UTxO) returns (google.protobuf.Empty){}
+  rpc SetAtomicingTrue(UTxO) returns (google.protobuf.Empty){}
 }

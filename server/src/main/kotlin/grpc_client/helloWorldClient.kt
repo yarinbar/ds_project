@@ -115,6 +115,18 @@ class HelloWorldClient(private val channel: ManagedChannel) : Closeable {
         return ret
     }
 
+    suspend fun submitAtomicTxList(tx_list: AtomicTxListRequest) : AtomicTxListResponse{
+        println("HelloWorldClient: submitAtomicTxList: submitting to server")
+        val ret = public_stub.submitAtomicTxList(tx_list)
+        return ret
+    }
+
+    suspend fun queryUTxO(utxo: UTxO) : QueryUTxOResponse{
+        println("HelloWorldClient: queryUTxO: submitting submitAtomicTxList to server")
+        val ret = public_stub.queryUTxO(utxo)
+        return ret
+    }
+
     override fun close() {
         channel.shutdown().awaitTermination(5, TimeUnit.SECONDS)
     }

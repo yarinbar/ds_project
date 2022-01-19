@@ -26,6 +26,17 @@ message Tx {
 
 //------------------------- Request / Response ----------------
 
+message AtomicTxListRequest{
+  repeated Tx tx_list = 1;
+}
+
+message AtomicTxListResponse{
+  repeated SendMoneyResponse tx_ids_list = 1;
+}
+
+message QueryUTxOResponse{
+  int32 occurrences = 1;
+}
 
 message HistoryRequest{
   string addr = 1;
@@ -66,5 +77,7 @@ service UserServices{
   rpc GetUTxOs(UTxORequest) returns (UTxOResponse) {}
   rpc SendMoney(SendMoneyRequest) returns (SendMoneyResponse) {}
   rpc SubmitTx(Tx) returns (SendMoneyResponse) {}
+  rpc SubmitAtomicTxList(AtomicTxListRequest) returns (AtomicTxListResponse) {}
   rpc SendInducedUTxO(UTxO) returns (InternalResponse){}
+  rpc QueryUTxO(UTxO) returns (QueryUTxOResponse) {}
 }

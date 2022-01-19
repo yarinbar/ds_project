@@ -11,6 +11,7 @@ import java.util.*
 import kotlin.collections.HashMap
 import org.apache.zookeeper.Watcher
 import org.apache.zookeeper.ZooKeeper
+import java.util.Collections
 import zookeeper.kotlin.ZKPaths
 import zookeeper.kotlin.ZookeeperKtClient
 import java.net.InetAddress
@@ -106,7 +107,6 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
         )
     }
 
-
     private fun stop() {
         server.shutdown()
     }
@@ -140,12 +140,12 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
         fun getHistoryImp(request: HistoryRequest):HistoryResponse{
 
             val addr = request.addr
-            println(addr)
             var tx_hist = emptyList<Tx>()
-            println(tx_hist)
             val addr_history = ledger[addr]
+
             println("ADDR HIST")
             println(addr_history)
+
             if (addr_history != null){
                 tx_hist = addr_history.toList()
                 if (request.limit >=0 ){
@@ -245,7 +245,7 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
             println("### src available utxos before the transaction###")
             println(available_utxos)
             var sumUTxOs = 0.toULong()
-            var utxo_list = mutableListOf<UTxO>()
+            val utxo_list = mutableListOf<UTxO>()
             if (available_utxos != null) {
                 for (utxo in available_utxos) {
                     sumUTxOs += utxo.coins.toULong()
@@ -308,12 +308,11 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
                 return submitTxImp(request)
             }
             // option 2 - we are not in the correct shard and need to forward the request
-            else{
+            else {
                 println("HelloWorldServer: submitTx: Not my shard or not leader in my shard - not my problem")
                 val channel = ManagedChannelBuilder.forAddress(shard_leader, 50051).usePlaintext().build()
                 val client = HelloWorldClient(channel)
-                val ret = client.submitTx(request)
-                return ret
+                return client.submitTx(request)
             }
         }
 
@@ -386,7 +385,7 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
 
         }
 
-        suspend fun validateTx(request: Tx): String{
+        fun validateTx(request: Tx): String{
 
             val inputs = request.inputsList
             val outputs = request.outputsList
@@ -425,5 +424,66 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
             return request.txId
         }
 
+        override suspend fun submitAtomicTxList(request: AtomicTxListRequest): AtomicTxListResponse {
+            if (!validateAtomicTxList(request))
+                return atomicTxListResponse {
+                    txIdsList.addAll(listOf(sendMoneyResponse { txId = "not valid atomic tx list" }))
+                }
+
+            val response_list : MutableList<SendMoneyResponse> = mutableListOf()
+
+            for (tx in request.txListList)
+                response_list.add(submitTx(tx))
+
+            return atomicTxListResponse { txIdsList.addAll(response_list) }
+        }
+
+        suspend fun validateAtomicTxList(request: AtomicTxListRequest) : Boolean {
+            val all_utxos_required : List<UTxO> = request.txListList.map { it.inputsList }.flatten()
+            println("all inputs are\n${all_utxos_required}")
+
+            // Checking that all utxos used are present
+            for (utxo in all_utxos_required.distinct()){
+                if (Collections.frequency(all_utxos_required, utxo) > queryUTxO(utxo).occurrences)
+                    return false
+            }
+
+            return true
+
+        }
+
+        override suspend fun queryUTxO(request: UTxO): QueryUTxOResponse{
+
+            val src_addr = request.addr
+            val target_shard = find_addr_shard(src_addr)
+            val shard_leader = get_shard_leader1(target_shard)
+
+            // -------------- Checking if the UTxOs provided are present -------------
+            // Option 1 - we are in the correct shard so we can check this address
+            if (my_ip == shard_leader){
+                println("HelloWorldServer: queryUTxO: My shard and I am the leader - processing request")
+                return queryUTxOResponse { occurrences = queryUTxOImp(request) }
+            }
+            // option 2 - we are not in the correct shard and need to forward the request
+            else {
+                println("HelloWorldServer: queryUTxO: Not my shard or not leader in my shard - not my problem")
+                val channel = ManagedChannelBuilder.forAddress(shard_leader, 50051).usePlaintext().build()
+                val client = HelloWorldClient(channel)
+                return client.queryUTxO(request)
+            }
+        }
+
+        fun queryUTxOImp(utxo: UTxO): Int{
+            val src_addr = utxo.addr
+            val user_utxos = utxos[src_addr]
+            println(user_utxos)
+            val ret = Collections.frequency(Collections.unmodifiableList(user_utxos), utxo)
+
+            println("num of ${utxo} found are ${ret}")
+
+            return ret
+        }
+
     }
+
 }

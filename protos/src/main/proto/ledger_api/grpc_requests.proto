@@ -70,6 +70,7 @@ message InternalResponse{
   int32 status = 1;
 }
 
+
 // --------------- Services --------------------
 
 service UserServices{
@@ -80,4 +81,5 @@ service UserServices{
   rpc SubmitAtomicTxList(AtomicTxListRequest) returns (AtomicTxListResponse) {}
   rpc SendInducedUTxO(UTxO) returns (InternalResponse){}
   rpc QueryUTxO(UTxO) returns (QueryUTxOResponse) {}
+  rpc ToggleAtomicing(UTxO) returns (google.protobuf.Empty){}
 }

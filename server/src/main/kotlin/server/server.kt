@@ -24,7 +24,7 @@ class TransactionsManager {
         val txid = client.send_money(src_addr = src_addr, dst_addr = dst_addr, coins = coins).txId
           if (txid == "-1"){return@runBlocking "Operation failed, not enough funds."}
           else
-          return@runBlocking "Success! Sent. ${coins} coins to ${dst_addr} from ${src_addr}.\nTransaction submitted with id ${txid}"
+          return@runBlocking txid
     }
 
     fun submitTx(tx:Tx):String = runBlocking {

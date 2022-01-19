@@ -1,5 +1,6 @@
 package com.kotlingrpc.demoGrpc.generated.main.grpckt.com.kotlingrpc.demoGrpc
 
+import com.google.protobuf.Empty
 import io.grpc.ManagedChannel
 import io.grpc.ManagedChannelBuilder
 import messages.*
@@ -126,7 +127,10 @@ class HelloWorldClient(private val channel: ManagedChannel) : Closeable {
         val ret = public_stub.queryUTxO(utxo)
         return ret
     }
-
+    suspend fun toggleAtomicing(utxo: UTxO):Empty  {
+        println("Client - set atomicing")
+        return public_stub.toggleAtomicing(utxo)
+    }
     override fun close() {
         channel.shutdown().awaitTermination(5, TimeUnit.SECONDS)
     }

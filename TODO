@@ -1,0 +1,14 @@
+Methods (implement on single server per shard first)
+1. send money
+2. submit transaction
+3. get address utxos + with limit
+4. get address history + with limi
+5. get entire ledger history (3 pt bonus)
+6. Atomic transaction (9 pt bonus)
+
+
+
+Flow
+User submits request via rest to any server -> send request to grpc client function -> build proto type and send to server
+    If leader in right shard -> handle request -> broadcast outcome to other shard members
+    Else -> send request to client grpc function in the correct server -> handle request -> broadcast to other shard members

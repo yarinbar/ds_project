@@ -7,5 +7,5 @@ ADD server/build/libs/server.jar /home/
 
 EXPOSE 8080
 
-ENV NUM_SHARDS=4
+ENV NUM_SHARDS=2
 CMD ["java", "-jar", "server.jar"]

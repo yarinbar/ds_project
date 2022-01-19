@@ -202,6 +202,19 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
             return grpc_utxos_hist
         }
 
+        override suspend fun sendInducedUTxO(request: UTxO): InternalResponse {
+            println("adding utxo to right shard")
+            println(request)
+            if (utxos.containsKey(request.addr)) {
+                utxos[request.addr]?.add(request)
+            } else {
+                utxos[request.addr] = mutableListOf(request)
+            }
+            println("UTXOS for ${request.addr} after transaction")
+            println(utxos)
+            return internalResponse { status=1}
+        }
+
         override suspend fun sendMoney(request: SendMoneyRequest): SendMoneyResponse {
             println("SEND MONEY SERVER")
 //            val shard_incharge = find_addr_shard(request.srcAddr)
@@ -215,19 +228,6 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
             val channel = ManagedChannelBuilder.forAddress(target_ip, 50051).usePlaintext().build()
             val client = HelloWorldClient(channel)
             return client.send_money(request.srcAddr, request.dstAddr, request.coins.toUInt())
-        }
-
-        override suspend fun sendInducedUTxO(request: UTxO): InternalResponse {
-            println("adding utxo to right shard")
-            println(request)
-            if (utxos.containsKey(request.addr)) {
-                utxos[request.addr]?.add(request)
-            } else {
-                utxos[request.addr] = mutableListOf(request)
-            }
-            println("UTXOS for ${request.addr} after transaction")
-            println(utxos)
-            return internalResponse { status=1}
         }
 
         suspend fun sendMoneyImp(request: SendMoneyRequest): SendMoneyResponse {
@@ -276,30 +276,79 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
                     }
                 )
             }
-            // add to ledger in current shard
+
             val new_tx = tx {
                 txId = tx_id
                 inputs.addAll(utxo_list)
                 outputs.addAll(transfers)
                 timestamp = fromMillis(System.currentTimeMillis())
             }
-            if (ledger.containsKey(src_addr)) {
-                ledger[src_addr]?.add(new_tx)
-            } else {
-                ledger[src_addr] = mutableListOf(new_tx)
+
+            return submitTx(new_tx)
+        }
+
+        override suspend fun submitTx(request: Tx): SendMoneyResponse {
+            // TODO - check if we need to check for validity
+
+            val inputs = request.inputsList
+
+            if (inputs.size == 0)
+                return sendMoneyResponse {
+                    txId = "tx needs to include at least 1 utxo"
+                }
+
+            val utxo_src_addr = request.inputsList[0].addr
+            val target_shard = find_addr_shard(utxo_src_addr)
+            val shard_leader = get_shard_leader1(target_shard)
+
+            // -------------- Checking if the UTxOs provided are present -------------
+            // Option 1 - we are in the correct shard so we can check this address
+            if (my_ip == shard_leader){
+                println("HelloWorldServer: submitTx: My shard and I am the leader - processing request")
+                return submitTxImp(request)
             }
+            // option 2 - we are not in the correct shard and need to forward the request
+            else{
+                println("HelloWorldServer: submitTx: Not my shard or not leader in my shard - not my problem")
+                val channel = ManagedChannelBuilder.forAddress(shard_leader, 50051).usePlaintext().build()
+                val client = HelloWorldClient(channel)
+                val ret = client.submitTx(request)
+                return ret
+            }
+        }
+
+        suspend fun submitTxImp(request: Tx): SendMoneyResponse{
+
+            val inputs = request.inputsList
+            val src_addr = request.inputsList[0].addr
+
+            val validation_res = validateTx(request)
+
+            // If tx is not valid for any reason, return the issue
+            if (validation_res != request.txId)
+                return sendMoneyResponse {
+                    txId = validation_res
+                }
+
+            // add to ledger in current shard
+            if (ledger.containsKey(src_addr)) {
+                ledger[src_addr]?.add(request)
+            } else {
+                ledger[src_addr] = mutableListOf(request)
+            }
+
             println("### ledger after transaction ###")
             println(ledger)
 
             // save new induced utxos at dest utxos
-            for (tr in transfers) {
+            for (tr in request.outputsList) {
                 val induced_utxo = uTxO {
-                    txId = tx_id
+                    txId = request.txId
                     addr = tr.addr
                     coins = tr.coins
                 }
                 if (find_addr_shard(induced_utxo.addr)==find_addr_shard(src_addr)) {
-//                     TODO send to leader??
+                    // TODO send to leader??
                     println("Induced utxo in same shard, adding it")
                     // add to utxo hashmap, check if addr is already mapped first
                     if (utxos.containsKey(tr.addr)) {
@@ -319,84 +368,62 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
                 }
             }
 
+
             // remove used utxos
-            for (utxo in utxo_list)
+            for (utxo in inputs) {
+                println("removing ${utxo} from ${src_addr}")
                 utxos[src_addr] = utxos[src_addr]!!.minus(utxo).toMutableList()
+                println("after removal ${utxos[src_addr]}")
+            }
 
             println("### UTXOS after the tx ###")
             println(utxos)
 
-            grpc_send_money_response = sendMoneyResponse {
-                txId = tx_id
+            println("HelloWorldServer: submitTxImp: Done successfully!")
+            return sendMoneyResponse {
+                txId = request.txId
             }
-            return grpc_send_money_response
+
         }
 
-        override suspend fun submitTx(request: Tx): SendMoneyResponse {
-            // TODO - check if we need to check for validity
+        suspend fun validateTx(request: Tx): String{
 
             val inputs = request.inputsList
             val outputs = request.outputsList
-            if (inputs.size == 0){
-                val grpc_send_money_response = sendMoneyResponse {
-                    txId = "tx needs to include at least 1 utxo"
+            val utxo_src_addr = request.inputsList[0].addr
+            var found_all_utxos : Boolean = true
+            val user_utxos = utxos[utxo_src_addr]
+
+            println("HelloWorldServer: submitTxImp: UTxOs found for address ${utxo_src_addr}:\n${user_utxos}")
+
+            val absent_utxos : MutableList<UTxO> = mutableListOf()
+
+            println("HelloWorldServer: submitTxImp: Beginning to process request")
+
+            // TODO - outputs to induced
+            if (user_utxos == null)
+                return "no utxos found for ${utxo_src_addr}"
+
+            for (utxo in inputs){
+                if (utxo !in user_utxos){
+                    found_all_utxos = false
+                    absent_utxos.add(utxo)
                 }
-                return grpc_send_money_response
             }
+            if (!found_all_utxos)
+                return "the following utxos were not found and the action failed:\n${absent_utxos}"
 
-            println("GOT HERE :0 ${request}")
-            println("GOT HERE :0 ${request.inputsList}")
-            println("GOT HERE :0 ${request.inputsList[0]}")
-            println("GOT HERE :0 ${request.inputsList[0].addr}")
-            println("GOT HERE :0 ${find_addr_shard(request.inputsList[0].addr)}")
+            val inputs_tx_ids = inputs.map { it.txId }
+            val relevant_utxos = utxos[utxo_src_addr]?.filter { it.txId in  inputs_tx_ids}?.map { it.coins }
+            val output_coins = outputs.map { it.coins }.sum()
+            val relevant_utxo_sum : Long = relevant_utxos?.sum() ?: 0
 
-            // -------------- Checking if the UTxOs provided are present -------------
-            // Option 1 - we are in the correct shard so we can check this address
-            if (find_addr_shard(request.inputsList[0].addr) == shard){
-                println("GOT HERE :1")
-                var found_all_utxos : Boolean = true
-                val user_utxos = utxos[request.inputsList[0].addr]
-                println("GOT HERE :2")
-                var absent_utxos : MutableList<UTxO> = mutableListOf()
-                println("GOT HERE :3")
-                if (user_utxos == null){
-                    val grpc_send_money_response = sendMoneyResponse {
-                        txId = "no utxos found for ${request.inputsList[0].addr}"
-                    }
-                    return grpc_send_money_response
-                }
-                println("GOT HERE :4")
-                for (utxo in inputs){
-                    if (utxo !in user_utxos){
-                        found_all_utxos = false
-                        absent_utxos.add(utxo)
-                    }
-                }
+            if (output_coins != relevant_utxo_sum)
+                return "utxo sum must match outputs sum, utxo sum: ${relevant_utxo_sum} output sum: ${output_coins}"
 
-                if (!found_all_utxos){
-                    val grpc_send_money_response = sendMoneyResponse {
-                        txId = "the following utxos were not found and the action failed:\n${absent_utxos}"
-                    }
-                    return grpc_send_money_response
-                }
-
-            }
-            // option 2 - we are not in the correct shard and need to forward the request
-            else{
-                println("HelloWorldClient: submitTx: Not my shard - not my problem")
-            }
-            println("WTF?")
-
-            println("Got Here!")
-            println(inputs)
-            println(outputs)
-            println("Got Here! :D")
-
-            val grpc_send_money_response = sendMoneyResponse {
-                txId = "-1"
-            }
-
-            return grpc_send_money_response
+            // if all checks pass returns the tx_id
+            return request.txId
         }
+
     }
 }

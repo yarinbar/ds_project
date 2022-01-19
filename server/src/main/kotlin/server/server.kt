@@ -10,6 +10,7 @@ import messages.*
 import org.springframework.http.MediaType
 import kotlinx.serialization.*
 import kotlinx.serialization.json.Json
+import java.util.*
 import kotlin.collections.*
 
 @Service
@@ -28,7 +29,7 @@ class TransactionsManager {
 
     fun submitTx(tx:Tx):String = runBlocking {
         val ret = client.submitTx(tx)
-        return@runBlocking ("cool")
+        return@runBlocking (ret.txId)
     }
 
     fun getUtxos(addr: String,n:Int=-1):String = runBlocking {
@@ -85,11 +86,11 @@ class TMController(private val transactionsManager: TransactionsManager) {
 
 
     @Serializable
-    data class SerUTxO(val tx_id: String, val addr: String)
+    data class SerUTxO(val addr: String, val tx_id: String, val coins: Long)
 
 
     @Serializable
-    data class SerTx(val tx_id: String, val inputs: MutableList<SerUTxO>, val outputs: MutableList<SerTr>)
+    data class SerTx(val inputs: MutableList<SerUTxO>, val outputs: MutableList<SerTr>)
 
     @PostMapping("/submitTx", consumes = arrayOf(MediaType.APPLICATION_JSON_VALUE))
     fun submitTx(@RequestBody tx: String ) : String? {
@@ -104,6 +105,7 @@ class TMController(private val transactionsManager: TransactionsManager) {
             inputs.add(uTxO {
                 txId = utxo.tx_id
                 addr = utxo.addr
+                coins = utxo.coins
             })
         }
 
@@ -114,8 +116,10 @@ class TMController(private val transactionsManager: TransactionsManager) {
             })
         }
 
+        val new_tx_id = UUID.randomUUID().toString()
+
         val new_tx = tx {
-            txId = decoded_tx.tx_id
+            txId = new_tx_id
             this.inputs.addAll(inputs)
             this.outputs.addAll(outputs)
             timestamp = Timestamps.fromMillis(System.currentTimeMillis())
@@ -125,6 +129,6 @@ class TMController(private val transactionsManager: TransactionsManager) {
 
         val ret = transactionsManager.submitTx(new_tx)
 
-        return tx
+        return ret
     }
 }

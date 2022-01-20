@@ -65,11 +65,6 @@ class HelloWorldClient(private val channel: ManagedChannel) : Closeable {
         return n_history_list
     }
 
-    suspend fun send_induced_utxo(uTxO: UTxO) : InternalResponse{
-        println("Reaching out to shard to add utxos")
-        val send_utxo_response = public_stub.sendInducedUTxO(uTxO)
-        return send_utxo_response
-    }
       suspend fun send_money(src_addr: String, dst_addr: String, coins: UInt) : SendMoneyResponse{
         println("SEND MONEY CLIENT")
         if (coins.toInt() == 0){
@@ -110,6 +105,11 @@ class HelloWorldClient(private val channel: ManagedChannel) : Closeable {
         return get_history_response
     }
 
+    suspend fun sendInducedUTxO(utxo: UTxO): InternalResponse{
+        println("HelloWorldClient: sendInducedUTxO: submitting induced utxo to server")
+        return public_stub.otherShardInducedUTxO(utxo)
+    }
+
     suspend fun submitTx(tx: Tx): SendMoneyResponse{
         println("HelloWorldClient: submitting transaction to server")
         val ret = public_stub.submitTx(tx)
@@ -135,6 +135,25 @@ class HelloWorldClient(private val channel: ManagedChannel) : Closeable {
         println("Client - set atomicing to true")
         return public_stub.setAtomicingTrue(utxo)
     }
+
+    suspend fun addTx(tx: Tx) : InternalResponse{
+        println("HelloWorldClient: updateFollowerLedger: submitting tx to server")
+        val ret = public_stub.addTx(tx)
+        return ret
+    }
+
+    suspend fun addUTxOs(utxo_list: UTxOList) : InternalResponse{
+        println("HelloWorldClient: updateFollowerUTxO: submitting utxo to server")
+        val ret = public_stub.addUTxOs(utxo_list)
+        return ret
+    }
+
+    suspend fun rmUTxOs(utxo_list: UTxOList) : InternalResponse{
+        println("HelloWorldClient: updateFollowerUTxO: submitting utxo to server")
+        val ret = public_stub.rmUTxOs(utxo_list)
+        return ret
+    }
+
     override fun close() {
         channel.shutdown().awaitTermination(5, TimeUnit.SECONDS)
     }

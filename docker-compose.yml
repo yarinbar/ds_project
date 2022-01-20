@@ -25,7 +25,7 @@ services:
       - ALLOW_ANONYMOUS_LOGIN=yes
       - ZOO_SERVERS=zoo1.zk.local:2888:3888
 
-  node0:
+  node00:
     environment:
       - SHARD=0
     build: .
@@ -34,12 +34,39 @@ services:
     networks:
       - zookeeper
 
-  node1:
+  node01:
+    environment:
+      - SHARD=0
+    build: .
+    ports:
+      - 10001:8080
+    networks:
+      - zookeeper
+
+  node02:
+    environment:
+      - SHARD=0
+    build: .
+    ports:
+      - 10003:8080
+    networks:
+      - zookeeper
+
+  node10:
     environment:
       - SHARD=1
     build: .
     ports:
-      - 10001:8080
+      - 10004:8080
+    networks:
+      - zookeeper
+
+  node11:
+    environment:
+      - SHARD=1
+    build: .
+    ports:
+      - 10005:8080
     networks:
       - zookeeper
 

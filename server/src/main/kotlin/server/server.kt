@@ -60,7 +60,7 @@ class TransactionsManager {
 class TMController(private val transactionsManager: TransactionsManager) {
 
     //    List the entire ledger history since the Genesis UTxO ordered by the transaction timestamps. It should also support a limit on the number of transactions being returned.
-//
+
     @GetMapping("/utxos/{addr}")
     fun getUTxOs(@PathVariable("addr") addr: String): String? {
         return transactionsManager.getUtxos(addr)}
@@ -68,16 +68,14 @@ class TMController(private val transactionsManager: TransactionsManager) {
     @GetMapping("/utxos/{addr}/{n}")
     fun getUTxOs(@PathVariable("addr") addr: String, @PathVariable("n")n:Int): String? {
         return transactionsManager.getUtxos(addr,n)}
-//
+
     @GetMapping("/ledger/{addr}/{n}")
     fun getLedgerHistory(@PathVariable("addr") addr: String, @PathVariable("n")n:Int): String =
         transactionsManager.getAddrHistory(addr,n)
 
-
     @GetMapping("/ledger/{addr}")
     fun getLedgerHistory(@PathVariable("addr") addr: String): String =
         transactionsManager.getAddrHistory(addr)
-
 
     @PostMapping("/sendCoins")
      fun sendCoins(@RequestParam to:String, @RequestParam  from: String, @RequestParam  coins: UInt ) : String? {
@@ -90,10 +88,8 @@ class TMController(private val transactionsManager: TransactionsManager) {
     @Serializable
     data class SerTr(val addr: String, val coins: Long)
 
-
     @Serializable
     data class SerUTxO(val addr: String, val tx_id: String, val coins: Long)
-
 
     @Serializable
     data class SerTx(val inputs: MutableList<SerUTxO>, val outputs: MutableList<SerTr>)

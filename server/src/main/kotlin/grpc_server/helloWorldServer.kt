@@ -57,7 +57,7 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
     val zk = get_zk()
     val zkc = ZookeeperKtClient(zk)
 
-    fun get_shard_nodes(shard_incharge: Int) : List<String>{
+    fun get_shard_nodes(shard_incharge: Int): List<String> {
         val path = "/SHARD_${shard_incharge}"
         val children = zk.getChildren(path, false)
             .sortedBy { ZKPaths.extractSequentialSuffix(it)!! }
@@ -69,9 +69,9 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
         return get_shard_nodes(shard_incharge).first()
     }
 
-    fun tx_to_induced(tx: Tx) : MutableList<UTxO>{
+    fun tx_to_induced(tx: Tx): MutableList<UTxO> {
         // used to send to followers
-        val induced_utxos : MutableList<UTxO> = mutableListOf()
+        val induced_utxos: MutableList<UTxO> = mutableListOf()
 
         // save new induced utxos at dest utxos
         for (tr in tx.outputsList) {
@@ -339,7 +339,7 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
 
             println("HelloWorldServer: submitTxImp: Beginning to process request")
 
-            atomicing= true
+            atomicing = true
 
             val validation_res = validateTx(request)
 
@@ -359,8 +359,8 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
             println("HelloWorldServer: submitTxImp: I am the leader so i am updating first")
 
             var res = addTx(tx)
-            res = rmUTxOs(uTxOList {  utxos.addAll(tx.inputsList) })
-            res = addUTxOs(uTxOList {  utxos.addAll(this_shard_induced_utxos) })
+            res = rmUTxOs(uTxOList { utxos.addAll(tx.inputsList) })
+            res = addUTxOs(uTxOList { utxos.addAll(this_shard_induced_utxos) })
 
             println("HelloWorldServer: submitTxImp: I am the leader and updated successfully")
 
@@ -369,7 +369,7 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
             val other_shards_induced_utxos = induced_utxos.filter { it !in this_shard_induced_utxos }
             sendInducedUTxOS(other_shards_induced_utxos)
 
-            if (update_response.txId != request.txId){
+            if (update_response.txId != request.txId) {
                 println("HelloWorldServer: submitTxImp: Error happened when updating my followers")
                 // TODO - figure out what to do
                 println("HelloWorldServer: submitTxImp: Done to processing request")
@@ -388,7 +388,7 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
 
             var res = addUTxOs(uTxOList { utxos.addAll(listOf(request)) })
 
-            if (res.status != 0){
+            if (res.status != 0) {
                 return res
             }
 
@@ -405,7 +405,7 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
                     utxos.addAll(listOf(request))
                 })
 
-                if (res.status !=0 ){
+                if (res.status != 0) {
                     return res
                 }
 
@@ -413,9 +413,9 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
             return internalResponse { status = 0 }
         }
 
-        suspend fun sendInducedUTxOS(utxo_list: List<UTxO>): InternalResponse{
+        suspend fun sendInducedUTxOS(utxo_list: List<UTxO>): InternalResponse {
 
-            for (utxo in utxo_list){
+            for (utxo in utxo_list) {
                 println("HelloWorldServer: sendInducedUTxOS: sending ")
                 val target_ip = get_shard_leader(find_addr_shard(utxo.addr))
                 val channel = ManagedChannelBuilder.forAddress(target_ip, 50051).usePlaintext().build()
@@ -449,7 +449,7 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
 
             val utxo_list = request.utxosList
 
-            for (utxo in utxo_list){
+            for (utxo in utxo_list) {
                 val addr = utxo.addr
                 println("HelloWorldServer: addUTxOs: server ${my_ip} in shard ${my_shard} adding ${utxo.txId} to utxos")
                 if (utxos.containsKey(addr)) {
@@ -467,7 +467,7 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
 
             val utxo_list = request.utxosList
 
-            for (utxo in utxo_list){
+            for (utxo in utxo_list) {
                 val addr = utxo.addr
                 println("HelloWorldServer: rmUTxOs: server ${my_ip} in shard ${my_shard} removing ${utxo.txId} from utxos")
                 if (!utxos.containsKey(addr)) {
@@ -481,7 +481,7 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
             return internalResponse { status = 0 }
         }
 
-        suspend fun updateFollwers(tx: Tx) : SendMoneyResponse {
+        suspend fun updateFollwers(tx: Tx): SendMoneyResponse {
 
             val induced_utxos = tx_to_induced(tx)
             val this_shard_induced_utxos = induced_utxos.filter { find_addr_shard(it.addr) == my_shard }
@@ -489,16 +489,17 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
             val followers = get_shard_nodes(my_shard).minus(get_shard_leader(my_shard))
             println("HelloWorldServer: updateFollwers: sending messages to ${followers}")
 
-            for (follower in followers){
+            for (follower in followers) {
                 println("HelloWorldServer: updateFollwers: sending messages to ${follower}")
                 val channel = ManagedChannelBuilder.forAddress(follower, 50051).usePlaintext().build()
                 val client = HelloWorldClient(channel)
 
                 var res = client.addTx(tx)
 
-                if (res.status != 0){
+                if (res.status != 0) {
                     return sendMoneyResponse {
-                        txId = "HelloWorldServer: updateAll: error occured when sending to follower ${follower} with status code ${res.status}"
+                        txId =
+                            "HelloWorldServer: updateAll: error occured when sending to follower ${follower} with status code ${res.status}"
                     }
                 }
 
@@ -507,9 +508,10 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
                     utxos.addAll(tx.inputsList)
                 })
 
-                if (res.status != 0){
+                if (res.status != 0) {
                     return sendMoneyResponse {
-                        txId = "HelloWorldServer: updateAll: error occured when sending to follower ${follower} with status code ${res.status}"
+                        txId =
+                            "HelloWorldServer: updateAll: error occured when sending to follower ${follower} with status code ${res.status}"
                     }
                 }
 
@@ -518,9 +520,10 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
                     utxos.addAll(this_shard_induced_utxos)
                 })
 
-                if (res.status != 0){
+                if (res.status != 0) {
                     return sendMoneyResponse {
-                        txId = "HelloWorldServer: updateAll: error occured when sending to follower ${follower} with status code ${res.status}"
+                        txId =
+                            "HelloWorldServer: updateAll: error occured when sending to follower ${follower} with status code ${res.status}"
                     }
                 }
 
@@ -544,7 +547,6 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
             println("HelloWorldServer: submitTxImp: UTxOs found for address ${utxo_src_addr}:\n${user_utxos}")
 
             val absent_utxos: MutableList<UTxO> = mutableListOf()
-
 
 
             // TODO - outputs to induced
@@ -689,6 +691,6 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
             return ret
         }
 
-}
+    }
 
 }

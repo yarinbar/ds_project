@@ -7,8 +7,9 @@ option java_multiple_files = true;
 
 message UTxO {
   string tx_id = 1;
-  string addr = 2;
-  uint64 coins = 3;
+  string utxo_id = 2;
+  string addr = 3;
+  uint64 coins = 4;
 }
 
 message Tr {

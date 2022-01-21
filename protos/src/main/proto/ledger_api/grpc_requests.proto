@@ -80,6 +80,8 @@ message UTxOList{
 
 service UserServices{
   rpc GetHistory(HistoryRequest) returns (HistoryResponse) {}
+  rpc GetEntireHistory(google.protobuf.Empty) returns (HistoryResponse) {}
+  rpc GetShardHistory(google.protobuf.Empty)  returns (HistoryResponse) {}
   rpc GetUTxOs(UTxORequest) returns (UTxOResponse) {}
   rpc SendMoney(SendMoneyRequest) returns (SendMoneyResponse) {}
   rpc SubmitTx(Tx) returns (SendMoneyResponse) {}

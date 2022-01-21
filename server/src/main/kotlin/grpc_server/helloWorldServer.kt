@@ -155,6 +155,38 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
             return int_addr.mod(num_shards.toBigInteger()).toInt()
         }
 
+        override suspend fun getEntireHistory(request: Empty): HistoryResponse {
+//            for each shard leader get entire ledger, merge and order
+            var ledger = mutableListOf<Tx>()
+            for (i in 0 until System.getenv("NUM_SHARDS").toInt()) {
+                println("GETTING HISTORY FOR SHARD ${i}")
+                val shard_leader = get_shard_leader(i)
+//                if (my_ip == shard_leader) {
+//                    println("Correct node, handling request")
+//                    return getHistoryImp(request)
+//                }
+                println("getting histroy from ${shard_leader}")
+                val target_ip = shard_leader
+                val channel = ManagedChannelBuilder.forAddress(target_ip, 50051).usePlaintext().build()
+                val client = HelloWorldClient(channel)
+                ledger.addAll(client.getShardHistory().txsList)
+            }
+            ledger = ledger.sortedWith(compareByDescending { it.timestamp.seconds}).toMutableList()
+            println("ENTIRE LEDGER SORTED ${ledger}")
+            return historyResponse {
+                txs.addAll(ledger)
+            }
+        }
+
+        override suspend fun getShardHistory(request: Empty): HistoryResponse {
+            var shard_hist = ledger.values.toList().flatten()
+            println("###SHARD HIST####")
+            println(shard_hist)
+            return historyResponse {
+                txs.addAll(shard_hist)
+            }
+        }
+
         override suspend fun getHistory(request: HistoryRequest): HistoryResponse {
             println("GET HISTORY SERVER")
 
@@ -163,7 +195,6 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
                 println("Correct node, handling request")
                 return getHistoryImp(request)
             }
-
             println("Wrong shard or not the leader! send to address ${shard_leader}")
             val target_ip = shard_leader
             val channel = ManagedChannelBuilder.forAddress(target_ip, 50051).usePlaintext().build()
@@ -181,7 +212,7 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
             println(addr_history)
 
             if (addr_history != null) {
-                tx_hist = addr_history.toList()
+                tx_hist = addr_history.toList().sortedBy { it.timestamp.seconds }
                 if (request.limit >= 0) {
                     println(tx_hist)
                     tx_hist = tx_hist.take(request.limit.toInt())
@@ -346,7 +377,6 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
 
             println("submitTxImp: Beginning to process request")
 
-            atomicing = true
 
             val validation_res = validateTx(request)
 
@@ -367,7 +397,6 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
             println("HelloWorldServer: submitTxImp: All followers responded successfully! sending result to client")
 
             println("HelloWorldServer: submitTxImp: Done successfully!")
-            atomicing = false
             return sendMoneyResponse { txId = tx.txId }
         }
 
@@ -627,6 +656,18 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
                     for (utxo in all_utxos_required.distinct()) {
                         setAtomicingFalse(utxo)
                     }
+                    return false
+                }
+            }
+
+            for (tx in request.txListList){
+                val inputs = tx.inputsList
+                val outputs = tx.outputsList
+
+                val input_coins = inputs.map { it.coins }.sum()
+                val output_coins = outputs.map { it.coins }.sum()
+
+                if (output_coins !=input_coins) {
                     return false
                 }
             }

@@ -53,6 +53,12 @@ class TransactionsManager {
         println(hist)
         return@runBlocking hist.toString()
     }
+
+    fun getAllHistory():String = runBlocking {
+        println("Getting entire ledger history ordered")
+        val hist = client.getEntireHistory()
+        return@runBlocking hist.toString()
+    }
 }
 
 
@@ -76,6 +82,10 @@ class TMController(private val transactionsManager: TransactionsManager) {
     @GetMapping("/ledger/{addr}")
     fun getLedgerHistory(@PathVariable("addr") addr: String): String =
         transactionsManager.getAddrHistory(addr)
+
+    @GetMapping("/ledger/")
+    fun getLedgerHistory(): String =
+        transactionsManager.getAllHistory()
 
     @PostMapping("/sendCoins")
      fun sendCoins(@RequestParam to:String, @RequestParam  from: String, @RequestParam  coins: UInt ) : String? {

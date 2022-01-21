@@ -1,6 +1,7 @@
 package com.kotlingrpc.demoGrpc.generated.main.grpckt.com.kotlingrpc.demoGrpc
 
 import com.google.protobuf.Empty
+import com.google.protobuf.empty
 import io.grpc.ManagedChannel
 import io.grpc.ManagedChannelBuilder
 import messages.*
@@ -104,6 +105,17 @@ class HelloWorldClient(private val channel: ManagedChannel) : Closeable {
         print("GOT history!")
         return get_history_response
     }
+
+    suspend fun getEntireHistory():HistoryResponse{
+        val entire_history_response = public_stub.getEntireHistory(empty {  })
+        return entire_history_response
+    }
+
+    suspend fun getShardHistory():HistoryResponse{
+        val shard_history = public_stub.getShardHistory(empty {  })
+        return shard_history
+    }
+
 
     suspend fun sendInducedUTxO(utxo: UTxO): InternalResponse{
         println("HelloWorldClient: sendInducedUTxO: submitting induced utxo to server")

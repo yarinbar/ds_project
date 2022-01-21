@@ -75,10 +75,13 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
         val induced_utxos: MutableList<UTxO> = mutableListOf()
 
         // save new induced utxos at dest utxos
-        for (tr in tx.outputsList) {
+        for ((i,tr) in tx.outputsList.withIndex()) {
+            var utxo_string =tx.txId.plus(i.toString())
+            var utxoId = UUID.nameUUIDFromBytes(utxo_string.toByteArray()).toString()
+            println("generating utxo with id ${utxoId}")
             val induced_utxo = uTxO {
                 txId = tx.txId
-                utxoId = UUID.randomUUID().toString()
+                utxoId = utxoId
                 addr = tr.addr
                 coins = tr.coins
             }
@@ -302,7 +305,7 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
                 timestamp = fromMillis(System.currentTimeMillis())
             }
 
-            return submitTx(new_tx)
+            return submitTxImp(new_tx)
         }
 
         override suspend fun submitTx(request: Tx): SendMoneyResponse {
@@ -335,12 +338,13 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
         }
 
         suspend fun submitTxImp(request: Tx): SendMoneyResponse {
+            println("LEADER - submitTxImp")
             if (atomicing)
                 return sendMoneyResponse {
                     txId = "atomic tx happening"
                 }
 
-            println("HelloWorldServer: submitTxImp: Beginning to process request")
+            println("submitTxImp: Beginning to process request")
 
             atomicing = true
 
@@ -348,26 +352,17 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
 
             // If tx is not valid for any reason, return the issue
             if (validation_res != request.txId) {
-                println("HelloWorldServer: submitTxImp: Done to processing request")
+                println("submitTxImp: Done processing request, invalid, ending here.")
                 return sendMoneyResponse {
                     txId = validation_res
                 }
             }
+            println("submitTxImp:Done processing request. Valid")
 
             val tx = request
-            val induced_utxos = tx_to_induced(tx)
 
-            val this_shard_induced_utxos = induced_utxos.filter { find_addr_shard(it.addr) == my_shard }
-
-            println("HelloWorldServer: submitTxImp: I am the leader so i am updating first")
+            println("handling tx")
             addTx(tx)
-            rmUTxOs(uTxOList { utxos.addAll(request.inputsList) })
-            addUTxOs(uTxOList { utxos.addAll(this_shard_induced_utxos) })
-            println("HelloWorldServer: submitTxImp: I am the leader and updated successfully")
-
-
-            val other_shards_induced_utxos = induced_utxos.filter { it !in this_shard_induced_utxos }
-            sendInducedUTxOS(other_shards_induced_utxos)
 
             println("HelloWorldServer: submitTxImp: All followers responded successfully! sending result to client")
 
@@ -412,7 +407,6 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
                 val target_ip = get_shard_leader(find_addr_shard(utxo.addr))
                 val channel = ManagedChannelBuilder.forAddress(target_ip, 50051).usePlaintext().build()
                 val client = HelloWorldClient(channel)
-
                 client.sendInducedUTxO(utxo)
             }
 
@@ -423,29 +417,50 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
         override suspend fun addTx(request: Tx): InternalResponse {
 
             val src_addr = request.inputsList[0].addr
-            var need_to_gossip = true
-
             val induced_utxos = tx_to_induced(request)
+            induced_utxos.filter { find_addr_shard(it.addr) == my_shard }
             val this_shard_induced_utxos = induced_utxos.filter { find_addr_shard(it.addr) == my_shard }
 
             println("HelloWorldServer: addTx: server ${my_ip} in shard ${my_shard} adding ${request.txId} to ledger")
 
             // add to ledger in current shard
             if (ledger.containsKey(src_addr)) {
-
                 if (ledger[src_addr]?.contains(request) == true){
-                    println("HelloWorldServer: addTx: server ${my_ip} in shard ${my_shard} tried to add ${request.txId} but already exists!")
-                    need_to_gossip = false
+                    println("HelloWorldServer: addTx: server ${my_ip} in shard ${my_shard} tried to add ${request.txId} but already exists! Ending here")
+                    return internalResponse { status = 0 }
                 }
-
                 ledger[src_addr]?.add(request)
             } else {
                 ledger[src_addr] = mutableListOf(request)
             }
 
             println("HelloWorldServer: addTx: server ${my_ip} in shard ${my_shard} added ${request.txId} to ledger successfully")
+            for (utxo in request.inputsList) {
+                val addr = utxo.addr
+                println("trying to remove ${utxo}")
+                println("what i have issssss ${utxos[addr]}")
+                if (!utxos.containsKey(addr) || utxos[addr]?.contains(utxo) == false) {
+                    println("HelloWorldServer: rmUTxOs: server ${my_ip} in shard ${my_shard} cant find ${utxo.utxoId} from ${addr} ERROR")
+                    continue
+                }
+                utxos[addr] = utxos[addr]!!.minus(utxo).toMutableList()
+                println("HelloWorldServer: rmUTxOs: server ${my_ip} in shard ${my_shard} removed ${utxo.utxoId} from utxos successfully")
+            }
 
-            if (need_to_gossip){
+            for (utxo in induced_utxos) {
+                val addr = utxo.addr
+                println("HelloWorldServer: addUTxOs: server ${my_ip} in shard ${my_shard} adding ${utxo.utxoId} to utxos")
+                if (utxos.containsKey(addr)) {
+                    if (utxos[addr]?.contains(utxo) == true){
+                        println("HelloWorldServer: addUTxOs: server ${my_ip} in shard ${my_shard} tried to add ${utxo.utxoId} but already exists!")
+                        continue
+                    }
+                    utxos[addr]?.add(utxo)
+                } else {
+                    utxos[addr] = mutableListOf(utxo)
+                }
+                println("HelloWorldServer: addUTxOs: server ${my_ip} in shard ${my_shard} added ${utxo.utxoId} to utxos successfully")
+            }
 
                 println("HelloWorldServer: addTx: im gossiping! ${my_ip}")
                 val followers = get_shard_nodes(my_shard).minus(get_shard_leader(my_shard))
@@ -459,15 +474,13 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
 
                     val channel = ManagedChannelBuilder.forAddress(follower, 50051).usePlaintext().build()
                     val client = HelloWorldClient(channel)
-
-                    // removing used
                     client.addTx(request)
-                }
             }
-
+            println("sending induced utxos")
+            val other_shards_induced_utxos = induced_utxos.filter { it !in this_shard_induced_utxos }
+            sendInducedUTxOS(other_shards_induced_utxos)
             return internalResponse { status = 0 }
         }
-
         override suspend fun addUTxOs(request: UTxOList): InternalResponse {
 
             val utxo_list = request.utxosList
@@ -519,19 +532,7 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
             val utxo_list = request.utxosList
             var need_to_gossip = true
 
-            for (utxo in utxo_list) {
-                val addr = utxo.addr
-                println("HelloWorldServer: rmUTxOs: server ${my_ip} in shard ${my_shard} removing ${utxo.utxoId} from utxos")
-                println("trying to remove ${utxo}")
-                println("what i have issssss ${utxos[addr]}")
-                if (!utxos.containsKey(addr) || utxos[addr]?.contains(utxo) == false) {
-                    println("HelloWorldServer: rmUTxOs: server ${my_ip} in shard ${my_shard} cant find ${utxo.utxoId} from ${addr} ERROR")
-                    need_to_gossip = false
-                    continue
-                }
-                utxos[addr] = utxos[addr]!!.minus(utxo).toMutableList()
-                println("HelloWorldServer: rmUTxOs: server ${my_ip} in shard ${my_shard} removed ${utxo.utxoId} from utxos successfully")
-            }
+
 
             if (need_to_gossip){
                 println("HelloWorldServer: rmUTxOs: im gossiping! ${my_ip}")

@@ -77,11 +77,11 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
         // save new induced utxos at dest utxos
         for ((i,tr) in tx.outputsList.withIndex()) {
             var utxo_string =tx.txId.plus(i.toString())
-            var utxoId = UUID.nameUUIDFromBytes(utxo_string.toByteArray()).toString()
-            println("generating utxo with id ${utxoId}")
+            var utxoId_ = UUID.nameUUIDFromBytes(utxo_string.toByteArray()).toString()
+            println("generating utxo with id ${utxoId_}")
             val induced_utxo = uTxO {
                 txId = tx.txId
-                utxoId = utxoId
+                utxoId = utxoId_
                 addr = tr.addr
                 coins = tr.coins
             }
@@ -462,19 +462,19 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
                 println("HelloWorldServer: addUTxOs: server ${my_ip} in shard ${my_shard} added ${utxo.utxoId} to utxos successfully")
             }
 
-                println("HelloWorldServer: addTx: im gossiping! ${my_ip}")
-                val followers = get_shard_nodes(my_shard).minus(get_shard_leader(my_shard))
+            println("HelloWorldServer: addTx: im gossiping! ${my_ip}")
+            val followers = get_shard_nodes(my_shard).minus(get_shard_leader(my_shard))
 
-                for (follower in followers) {
+            for (follower in followers) {
 
-                    println("HelloWorldServer: addTx: sending gossip to ${follower}")
+                println("HelloWorldServer: addTx: sending gossip to ${follower}")
 
-                    if (follower == my_ip)
-                        continue
+                if (follower == my_ip)
+                    continue
 
-                    val channel = ManagedChannelBuilder.forAddress(follower, 50051).usePlaintext().build()
-                    val client = HelloWorldClient(channel)
-                    client.addTx(request)
+                val channel = ManagedChannelBuilder.forAddress(follower, 50051).usePlaintext().build()
+                val client = HelloWorldClient(channel)
+                client.addTx(request)
             }
             println("sending induced utxos")
             val other_shards_induced_utxos = induced_utxos.filter { it !in this_shard_induced_utxos }

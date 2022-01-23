@@ -142,6 +142,6 @@ class HelloWorldClient(private val channel: ManagedChannel) : Closeable {
     }
 
     override fun close() {
-        channel.shutdown().awaitTermination(5, TimeUnit.SECONDS)
+        channel.shutdown()
     }
 }

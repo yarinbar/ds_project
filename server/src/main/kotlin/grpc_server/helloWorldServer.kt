@@ -23,6 +23,7 @@ import java.net.InetAddress
 import zookeeper.kotlin.createflags.Ephemeral
 import zookeeper.kotlin.createflags.Sequential
 import zookeeper.kotlin.createflags.Persistent
+import java.util.concurrent.TimeUnit
 
 
 class HelloWorldServer(private val ip: String) {
@@ -330,8 +331,6 @@ class HelloWorldServer(private val ip: String) {
         }
 
         override suspend fun submitTx(request: Tx): SendMoneyResponse {
-            // TODO - check if we need to check for validity
-
             val inputs = request.inputsList
 
             if (inputs.size == 0)
@@ -362,14 +361,11 @@ class HelloWorldServer(private val ip: String) {
 
         suspend fun submitTxImp(request: Tx): SendMoneyResponse {
             println("LEADER - submitTxImp")
-            if (atomicing)
-                return sendMoneyResponse {
-                    txId = "atomic tx happening"
-                }
+            while (atomicing)
+                println("BUSY")
 
             println("submitTxImp: Beginning to process request")
-
-
+            atomicing=true
             val validation_res = validateTx(request)
 
             // If tx is not valid for any reason, return the issue
@@ -384,6 +380,7 @@ class HelloWorldServer(private val ip: String) {
             val tx = request
 
             addTx(tx)
+            atomicing=false
             println("HelloWorldServer: submitTxImp: Done successfully!")
             return sendMoneyResponse { txId = tx.txId }
         }

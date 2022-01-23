@@ -66,7 +66,7 @@ class HelloWorldClient(private val channel: ManagedChannel) : Closeable {
         return n_history_list
     }
 
-      suspend fun send_money(src_addr: String, dst_addr: String, coins: UInt) : SendMoneyResponse{
+      suspend fun send_money(src_addr: String, dst_addr: String, coins: ULong) : SendMoneyResponse{
         println("SEND MONEY CLIENT")
         if (coins.toInt() == 0){
             var grpc_send_money_response = sendMoneyResponse {

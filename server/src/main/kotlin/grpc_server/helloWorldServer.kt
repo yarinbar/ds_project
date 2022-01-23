@@ -25,12 +25,13 @@ import zookeeper.kotlin.createflags.Sequential
 import zookeeper.kotlin.createflags.Persistent
 
 
-class HelloWorldServer(private val ip: String, private val shard: Int, private val port: Int) {
+class HelloWorldServer(private val ip: String) {
     var utxos: HashMap<String, MutableList<UTxO>> = HashMap()
     var ledger: HashMap<String, MutableList<Tx>> = HashMap()
     var atomicing: Boolean = false
-    var my_shard: Int = shard
+    var my_shard: Int = (System.getenv("SHARD") ?: "0").toInt()
     var num_shards: Int = System.getenv("NUM_SHARDS").toInt()
+    val port: Int = System.getenv("PORT")?.toInt() ?: 50051
     var my_ip: String = ip
 
     val server: Server = ServerBuilder
@@ -119,7 +120,7 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
         if (my_shard == 0) {
             println("Server for shard 0, creating genesis UTxO")
             val tx_id = "0x00000000001"
-            val addr = "0000"
+            val addr = "0000000000000000"
             val new_utxo = uTxO {
                 this.txId = tx_id
                 this.utxoId = "00000000-0000-0000-0000-000000000000"
@@ -151,8 +152,8 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
     inner class UserServices : UserServicesGrpcKt.UserServicesCoroutineImplBase() {
 
         fun find_addr_shard(addr: String): Int {
-            val int_addr = addr.toBigInteger()
-            return int_addr.mod(num_shards.toBigInteger()).toInt()
+            val int_addr = addr.toLong(radix = 16)
+            return int_addr.mod(num_shards)
         }
 
         override suspend fun getEntireHistory(request: Empty): HistoryResponse {
@@ -245,12 +246,9 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
 
         fun getUTxOsImp(request: UTxORequest): UTxOResponse {
             val addr = request.addr
-            println(addr)
             var utxos_hist = emptyList<UTxO>()
-            println(utxos_hist)
             val addr_history = utxos[addr]
-            println("ADDR HIST")
-            println(addr_history)
+
             if (addr_history != null) {
                 utxos_hist = addr_history.toList()
                 if (request.limit >= 0) {
@@ -263,27 +261,25 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
             val grpc_utxos_hist = uTxOResponse {
                 utxos.addAll(utxos_hist)
             }
-            println("HERE")
+
             return grpc_utxos_hist
         }
 
         override suspend fun sendMoney(request: SendMoneyRequest): SendMoneyResponse {
-            println("SEND MONEY SERVER")
-//            val shard_incharge = find_addr_shard(request.srcAddr)
             val shard_leader = get_shard_leader(find_addr_shard(request.srcAddr))
             if (my_ip == shard_leader) {
                 println("Correct node, handling request")
                 return sendMoneyImp(request)
             }
+
             println("Wrong shard or not the leader! send to address ${shard_leader}")
             val target_ip = shard_leader
             val channel = ManagedChannelBuilder.forAddress(target_ip, 50051).usePlaintext().build()
             val client = HelloWorldClient(channel)
-            return client.send_money(request.srcAddr, request.dstAddr, request.coins.toUInt())
+            return client.send_money(request.srcAddr, request.dstAddr, request.coins.toULong())
         }
 
         suspend fun sendMoneyImp(request: SendMoneyRequest): SendMoneyResponse {
-            println("SEND MONEY IMP")
             val src_addr = request.srcAddr
             val dst_addr = request.dstAddr
             val coins_ = request.coins.toULong()
@@ -292,10 +288,6 @@ class HelloWorldServer(private val ip: String, private val shard: Int, private v
             }
             //TODO (optional) find best utxos not just any utxos
             val available_utxos = utxos[src_addr]
-            println("### ledger after transaction ###")
-            println(ledger)
-            println("### src available utxos before the transaction###")
-            println(available_utxos)
             var sumUTxOs = 0.toULong()
             val utxo_list = mutableListOf<UTxO>()
             if (available_utxos != null) {

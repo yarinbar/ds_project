@@ -24,12 +24,8 @@ suspend fun main(args: Array<String>) {
 		ip = socket.localAddress.hostAddress
 	}
 
-
-
 	runApplication<SpringBootBoilerplateApplication>(*args)
-	var port = System.getenv("PORT")?.toInt() ?: 50051
-	var shard: Int = (System.getenv("SHARD") ?: "0").toInt()
-	val server = HelloWorldServer(ip, shard, port)
+	val server = HelloWorldServer(ip)
 
 	server.start()
 	server.blockUntilShutdown()

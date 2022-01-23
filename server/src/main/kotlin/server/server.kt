@@ -19,7 +19,7 @@ class TransactionsManager {
     val channel = ManagedChannelBuilder.forAddress("localhost", port).usePlaintext().build()
     val client = HelloWorldClient(channel)
 
-      fun sendCoins(src_addr: String, dst_addr: String, coins: UInt) : String = runBlocking {
+      fun sendCoins(src_addr: String, dst_addr: String, coins: ULong) : String = runBlocking {
         println("here")
         val txid = client.send_money(src_addr = src_addr, dst_addr = dst_addr, coins = coins).txId
           if (txid == "-1"){return@runBlocking "Operation failed, not enough funds."}
@@ -88,7 +88,7 @@ class TMController(private val transactionsManager: TransactionsManager) {
         transactionsManager.getAllHistory()
 
     @PostMapping("/sendCoins")
-     fun sendCoins(@RequestParam to:String, @RequestParam  from: String, @RequestParam  coins: UInt ) : String? {
+     fun sendCoins(@RequestParam to:String, @RequestParam  from: String, @RequestParam  coins: ULong ) : String? {
         val ret= transactionsManager.sendCoins(src_addr = from, dst_addr = to, coins = coins)
         println("GOT BACK")
         println(ret)

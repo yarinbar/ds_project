@@ -125,7 +125,8 @@ class HelloWorldServer(private val ip: String) {
                 this.txId = tx_id
                 this.utxoId = "00000000-0000-0000-0000-000000000000"
                 this.addr = addr
-                this.coins = Long.MAX_VALUE
+//                this.coins = Long.MAX_VALUE
+                this.coins = 10000
             }
 
             utxos.put(addr, mutableListOf(new_utxo))
@@ -551,33 +552,12 @@ class HelloWorldServer(private val ip: String) {
             val inputs = request.inputsList
             val outputs = request.outputsList
             val utxo_src_addr = request.inputsList[0].addr
-            var found_all_utxos: Boolean = true
             val user_utxos = utxos[utxo_src_addr]
 
             println("HelloWorldServer: submitTxImp: UTxOs found for address ${utxo_src_addr}:\n${user_utxos}")
 
-            val absent_utxos: MutableList<UTxO> = mutableListOf()
-
-
-            // TODO - outputs to induced
-            if (user_utxos == null)
-                return "no utxos found for ${utxo_src_addr}"
-
-            for (utxo in inputs) {
-                if (utxo !in user_utxos) {
-                    found_all_utxos = false
-                    absent_utxos.add(utxo)
-                }
-            }
-            if (!found_all_utxos) {
-                return "the following utxos were not found and the action failed:\n${absent_utxos}"
-            }
-
-//            val inputs_tx_ids = inputs.map { it.txId }
-//            val relevant_utxos = utxos[utxo_src_addr]?.filter { it.txId in inputs_tx_ids }?.map { it.coins }
             val output_coins = outputs.map { it.coins }.sum()
             val input_coins = inputs.map { it.coins }.sum()
-//            val relevant_utxo_sum: Long = relevant_utxos?.sum() ?: 0
 
             if (output_coins != input_coins) {
                 return "utxo sum must match outputs sum, utxo sum: ${input_coins} output sum: ${output_coins}"

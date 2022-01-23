@@ -48,7 +48,7 @@ services:
       - SHARD=0
     build: .
     ports:
-      - 10003:8080
+      - 10002:8080
     networks:
       - zookeeper
 
@@ -57,11 +57,20 @@ services:
       - SHARD=1
     build: .
     ports:
-      - 10004:8080
+      - 10003:8080
     networks:
       - zookeeper
 
   node11:
+    environment:
+      - SHARD=1
+    build: .
+    ports:
+      - 10004:8080
+    networks:
+      - zookeeper
+
+  node12:
     environment:
       - SHARD=1
     build: .

@@ -82,7 +82,6 @@ class HelloWorldClient(private val channel: ManagedChannel) : Closeable {
 
         println("Attempting to send ${coins} coins from ${src_addr} to ${dst_addr}")
         val send_money_response = public_stub.sendMoney(request = send_money_request)
-        println("Sent with tx_id ${send_money_response.txId}")
         return send_money_response
     }
     suspend fun getUtxos(addr: String,limit:Int):UTxOResponse{
@@ -124,8 +123,15 @@ class HelloWorldClient(private val channel: ManagedChannel) : Closeable {
 
     suspend fun submitTx(tx: Tx): SendMoneyResponse{
         println("HelloWorldClient: submitting transaction to server")
-        val ret = public_stub.submitTx(tx)
-        return ret
+
+        try{
+            val ret = public_stub.withDeadlineAfter(30,TimeUnit.SECONDS).submitTx(tx)
+            return ret
+        }
+        catch(e:Exception){
+            return sendMoneyResponse { txId="Server timed out. Check the ledger history and try again if needed" }
+        }
+
     }
 
     suspend fun submitAtomicTxList(tx_list: AtomicTxListRequest) : AtomicTxListResponse{
@@ -160,11 +166,6 @@ class HelloWorldClient(private val channel: ManagedChannel) : Closeable {
         return ret
     }
 
-    suspend fun rmUTxOs(utxo_list: UTxOList) : InternalResponse{
-        println("HelloWorldClient: updateFollowerUTxO: submitting utxo to server")
-        val ret = public_stub.rmUTxOs(utxo_list)
-        return ret
-    }
 
     override fun close() {
         channel.shutdown().awaitTermination(5, TimeUnit.SECONDS)

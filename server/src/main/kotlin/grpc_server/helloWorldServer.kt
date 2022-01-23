@@ -171,6 +171,8 @@ class HelloWorldServer(private val ip: String) {
                 val channel = ManagedChannelBuilder.forAddress(target_ip, 50051).usePlaintext().build()
                 val client = HelloWorldClient(channel)
                 ledger.addAll(client.getShardHistory().txsList)
+                channel.shutdown()
+
             }
             ledger = ledger.sortedWith(compareByDescending { it.timestamp.seconds}).toMutableList()
             println("ENTIRE LEDGER SORTED ${ledger}")
@@ -200,7 +202,9 @@ class HelloWorldServer(private val ip: String) {
             val target_ip = shard_leader
             val channel = ManagedChannelBuilder.forAddress(target_ip, 50051).usePlaintext().build()
             val client = HelloWorldClient(channel)
-            return client.getAddrHistory(request.addr, request.limit.toInt())
+            val res = client.getAddrHistory(request.addr, request.limit.toInt())
+            channel.shutdown()
+            return res
         }
 
         fun getHistoryImp(request: HistoryRequest): HistoryResponse {
@@ -241,7 +245,9 @@ class HelloWorldServer(private val ip: String) {
             val target_ip = shard_leader
             val channel = ManagedChannelBuilder.forAddress(target_ip, 50051).usePlaintext().build()
             val client = HelloWorldClient(channel)
-            return client.getUtxos(request.addr, request.limit.toInt())
+            val res= client.getUtxos(request.addr, request.limit.toInt())
+            channel.shutdown()
+            return res
         }
 
         fun getUTxOsImp(request: UTxORequest): UTxOResponse {
@@ -276,7 +282,9 @@ class HelloWorldServer(private val ip: String) {
             val target_ip = shard_leader
             val channel = ManagedChannelBuilder.forAddress(target_ip, 50051).usePlaintext().build()
             val client = HelloWorldClient(channel)
-            return client.send_money(request.srcAddr, request.dstAddr, request.coins.toULong())
+            var res = client.send_money(request.srcAddr, request.dstAddr, request.coins.toULong())
+            channel.shutdown()
+            return res
         }
 
         suspend fun sendMoneyImp(request: SendMoneyRequest): SendMoneyResponse {
@@ -356,7 +364,9 @@ class HelloWorldServer(private val ip: String) {
                 println("HelloWorldServer: submitTx: Not my shard or not leader in my shard - not my problem")
                 val channel = ManagedChannelBuilder.forAddress(shard_leader, 50051).usePlaintext().build()
                 val client = HelloWorldClient(channel)
-                return client.submitTx(request)
+                var res= client.submitTx(request)
+                channel.shutdown()
+                return res
             }
         }
 
@@ -412,7 +422,7 @@ class HelloWorldServer(private val ip: String) {
                 res = client.addUTxOs(uTxOList {
                     utxos.addAll(listOf(request))
                 })
-
+                channel.shutdown()
                 if (res.status != 0) {
                     return res
                 }
@@ -429,6 +439,7 @@ class HelloWorldServer(private val ip: String) {
                 val channel = ManagedChannelBuilder.forAddress(target_ip, 50051).usePlaintext().build()
                 val client = HelloWorldClient(channel)
                 client.sendInducedUTxO(utxo)
+                channel.shutdown()
             }
 
             return internalResponse { status = 0 }
@@ -496,6 +507,7 @@ class HelloWorldServer(private val ip: String) {
                 val channel = ManagedChannelBuilder.forAddress(follower, 50051).usePlaintext().build()
                 val client = HelloWorldClient(channel)
                 client.addTx(request)
+                channel.shutdown()
             }
             println("sending induced utxos")
             val other_shards_induced_utxos = induced_utxos.filter { it !in this_shard_induced_utxos }
@@ -541,35 +553,8 @@ class HelloWorldServer(private val ip: String) {
 
                     // removing used
                     client.addUTxOs(request)
+                    channel.shutdown()
 
-                }
-            }
-
-            return internalResponse { status = 0 }
-        }
-
-        override suspend fun rmUTxOs(request: UTxOList): InternalResponse {
-
-            val utxo_list = request.utxosList
-            var need_to_gossip = true
-
-
-
-            if (need_to_gossip){
-                println("HelloWorldServer: rmUTxOs: im gossiping! ${my_ip}")
-                val followers = get_shard_nodes(my_shard).minus(get_shard_leader(my_shard))
-
-                for (follower in followers) {
-                    println("HelloWorldServer: rmUTxOs: sending messages to ${follower}")
-
-                    if (follower == my_ip)
-                        continue
-
-                    val channel = ManagedChannelBuilder.forAddress(follower, 50051).usePlaintext().build()
-                    val client = HelloWorldClient(channel)
-
-                    // removing used
-                    client.rmUTxOs(request)
                 }
             }
 
@@ -603,13 +588,14 @@ class HelloWorldServer(private val ip: String) {
                 return "the following utxos were not found and the action failed:\n${absent_utxos}"
             }
 
-            val inputs_tx_ids = inputs.map { it.txId }
-            val relevant_utxos = utxos[utxo_src_addr]?.filter { it.txId in inputs_tx_ids }?.map { it.coins }
+//            val inputs_tx_ids = inputs.map { it.txId }
+//            val relevant_utxos = utxos[utxo_src_addr]?.filter { it.txId in inputs_tx_ids }?.map { it.coins }
             val output_coins = outputs.map { it.coins }.sum()
-            val relevant_utxo_sum: Long = relevant_utxos?.sum() ?: 0
+            val input_coins = inputs.map { it.coins }.sum()
+//            val relevant_utxo_sum: Long = relevant_utxos?.sum() ?: 0
 
-            if (output_coins != relevant_utxo_sum) {
-                return "utxo sum must match outputs sum, utxo sum: ${relevant_utxo_sum} output sum: ${output_coins}"
+            if (output_coins != input_coins) {
+                return "utxo sum must match outputs sum, utxo sum: ${input_coins} output sum: ${output_coins}"
             }
 
             // if all checks pass returns the tx_id
@@ -685,7 +671,9 @@ class HelloWorldServer(private val ip: String) {
                 println("HelloWorldServer: queryUTxO: Not my shard or not leader in my shard - not my problem")
                 val channel = ManagedChannelBuilder.forAddress(shard_leader, 50051).usePlaintext().build()
                 val client = HelloWorldClient(channel)
-                return client.setAtomicingFalse(request)
+                var res =client.setAtomicingFalse(request)
+                channel.shutdown()
+                return res
             }
         }
 
@@ -706,7 +694,9 @@ class HelloWorldServer(private val ip: String) {
                 println("HelloWorldServer: queryUTxO: Not my shard or not leader in my shard - not my problem")
                 val channel = ManagedChannelBuilder.forAddress(shard_leader, 50051).usePlaintext().build()
                 val client = HelloWorldClient(channel)
-                return client.setAtomicingTrue(request)
+                val res = client.setAtomicingTrue(request)
+                channel.shutdown()
+                return res
             }
         }
 
@@ -727,7 +717,9 @@ class HelloWorldServer(private val ip: String) {
                 println("HelloWorldServer: queryUTxO: Not my shard or not leader in my shard - not my problem")
                 val channel = ManagedChannelBuilder.forAddress(shard_leader, 50051).usePlaintext().build()
                 val client = HelloWorldClient(channel)
-                return client.queryUTxO(request)
+                var res = client.queryUTxO(request)
+                channel.shutdown()
+                return res
             }
         }
 

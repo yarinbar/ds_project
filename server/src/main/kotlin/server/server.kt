@@ -5,6 +5,7 @@ import com.kotlingrpc.demoGrpc.generated.main.grpckt.com.kotlingrpc.demoGrpc.Hel
 import io.grpc.ManagedChannelBuilder
 import kotlinx.coroutines.runBlocking
 import org.springframework.stereotype.Service
+import com.google.protobuf.util.JsonFormat
 import org.springframework.web.bind.annotation.*
 import messages.*
 import org.springframework.http.MediaType
@@ -29,35 +30,30 @@ class TransactionsManager {
 
     fun submitTx(tx:Tx):String = runBlocking {
         val ret = client.submitTx(tx)
-        return@runBlocking (ret.txId)
+        return@runBlocking JsonFormat.printer().print(ret)
     }
 
     fun submitAtomicTxList(tx_list: AtomicTxListRequest):String = runBlocking {
         val ret = client.submitAtomicTxList(tx_list)
-        return@runBlocking (ret.txIdsListList.joinToString(", "))
+        return@runBlocking JsonFormat.printer().print(ret)
     }
 
 
     fun getUtxos(addr: String,n:Int=-1):String = runBlocking {
-        println("getting your utxos!")
-        val utxos = client.getUtxos(addr,n).utxosList
-        println("succeeded")
-        println(utxos)
-        return@runBlocking utxos.toString()
+        val utxos = client.getUtxos(addr,n)
+        return@runBlocking JsonFormat.printer().print(utxos)
     }
 
     fun getAddrHistory(addr: String,n:Int=-1):String = runBlocking{
         println("Getting history for address ${addr}")
-        val hist = client.getAddrHistory(addr,n).txsList
-        println("succeeded")
-        println(hist)
-        return@runBlocking hist.toString()
+        val hist = client.getAddrHistory(addr,n)
+        return@runBlocking JsonFormat.printer().print(hist)
     }
 
     fun getAllHistory():String = runBlocking {
         println("Getting entire ledger history ordered")
         val hist = client.getEntireHistory()
-        return@runBlocking hist.toString()
+        return@runBlocking JsonFormat.printer().print(hist)
     }
 }
 
@@ -90,8 +86,6 @@ class TMController(private val transactionsManager: TransactionsManager) {
     @PostMapping("/sendCoins")
      fun sendCoins(@RequestParam to:String, @RequestParam  from: String, @RequestParam  coins: ULong ) : String? {
         val ret= transactionsManager.sendCoins(src_addr = from, dst_addr = to, coins = coins)
-        println("GOT BACK")
-        println(ret)
         return ret
     }
 
@@ -137,7 +131,7 @@ class TMController(private val transactionsManager: TransactionsManager) {
     }
 
     @PostMapping("/submitTx", consumes = arrayOf(MediaType.APPLICATION_JSON_VALUE))
-    fun submitTx(@RequestBody tx: String ) : String? {
+    fun submitTx(@RequestBody tx: String ) : String {
         val decoded_tx = Json { ignoreUnknownKeys = true }.decodeFromString<SerTx>(tx)
 
         val new_tx = serTxToGRPC(decoded_tx)
@@ -153,7 +147,7 @@ class TMController(private val transactionsManager: TransactionsManager) {
     data class SerAtomicTxList(val txs: MutableList<SerTx>)
 
     @PostMapping("/submitAtomicTxList", consumes = arrayOf(MediaType.APPLICATION_JSON_VALUE))
-    fun submitAtomicTxList(@RequestBody tx_list: String ) : String? {
+    fun submitAtomicTxList(@RequestBody tx_list: String ) : String {
 
         val decoded_tx_list = Json { ignoreUnknownKeys = true }.decodeFromString<SerAtomicTxList>(tx_list)
         val grpc_atomic_tx_list : MutableList<Tx> = mutableListOf()

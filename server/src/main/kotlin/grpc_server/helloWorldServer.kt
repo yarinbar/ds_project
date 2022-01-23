@@ -125,7 +125,7 @@ class HelloWorldServer(private val ip: String) {
                 this.txId = tx_id
                 this.utxoId = "00000000-0000-0000-0000-000000000000"
                 this.addr = addr
-                this.coins = 100
+                this.coins = Long.MAX_VALUE
             }
 
             utxos.put(addr, mutableListOf(new_utxo))
@@ -175,7 +175,6 @@ class HelloWorldServer(private val ip: String) {
 
             }
             ledger = ledger.sortedWith(compareByDescending { it.timestamp.seconds}).toMutableList()
-            println("ENTIRE LEDGER SORTED ${ledger}")
             return historyResponse {
                 txs.addAll(ledger)
             }
@@ -183,15 +182,12 @@ class HelloWorldServer(private val ip: String) {
 
         override suspend fun getShardHistory(request: Empty): HistoryResponse {
             var shard_hist = ledger.values.toList().flatten()
-            println("###SHARD HIST####")
-            println(shard_hist)
             return historyResponse {
                 txs.addAll(shard_hist)
             }
         }
 
         override suspend fun getHistory(request: HistoryRequest): HistoryResponse {
-            println("GET HISTORY SERVER")
 
             val shard_leader = get_shard_leader(find_addr_shard(request.addr))
             if (my_ip == shard_leader) {
@@ -213,9 +209,6 @@ class HelloWorldServer(private val ip: String) {
             var tx_hist = emptyList<Tx>()
             val addr_history = ledger[addr]
 
-            println("ADDR HIST")
-            println(addr_history)
-
             if (addr_history != null) {
                 tx_hist = addr_history.toList().sortedBy { it.timestamp.seconds }
                 if (request.limit >= 0) {
@@ -235,7 +228,6 @@ class HelloWorldServer(private val ip: String) {
         override suspend fun getUTxOs(request: UTxORequest): UTxOResponse {
 
             println("GET UTXO SERVER")
-//            val shard_incharge = find_addr_shard(request.srcAddr)
             val shard_leader = get_shard_leader(find_addr_shard(request.addr))
             if (my_ip == shard_leader) {
                 println("Correct node, handling request")
@@ -258,9 +250,7 @@ class HelloWorldServer(private val ip: String) {
             if (addr_history != null) {
                 utxos_hist = addr_history.toList()
                 if (request.limit >= 0) {
-                    println(utxos_hist)
                     utxos_hist = utxos_hist.take(request.limit.toInt())
-                    println(utxos_hist)
                 }
             }
 
@@ -307,7 +297,6 @@ class HelloWorldServer(private val ip: String) {
                 }
             }
             if (sumUTxOs < coins_) {
-                println(coins_)
                 print("Not enough funds for this")
                 return grpc_send_money_response
             }
@@ -393,11 +382,7 @@ class HelloWorldServer(private val ip: String) {
 
             val tx = request
 
-            println("handling tx")
             addTx(tx)
-
-            println("HelloWorldServer: submitTxImp: All followers responded successfully! sending result to client")
-
             println("HelloWorldServer: submitTxImp: Done successfully!")
             return sendMoneyResponse { txId = tx.txId }
         }
@@ -469,8 +454,6 @@ class HelloWorldServer(private val ip: String) {
             println("HelloWorldServer: addTx: server ${my_ip} in shard ${my_shard} added ${request.txId} to ledger successfully")
             for (utxo in request.inputsList) {
                 val addr = utxo.addr
-                println("trying to remove ${utxo}")
-                println("what i have issssss ${utxos[addr]}")
                 if (!utxos.containsKey(addr) || utxos[addr]?.contains(utxo) == false) {
                     println("HelloWorldServer: rmUTxOs: server ${my_ip} in shard ${my_shard} cant find ${utxo.utxoId} from ${addr} ERROR")
                     continue
@@ -499,21 +482,23 @@ class HelloWorldServer(private val ip: String) {
 
             for (follower in followers) {
 
-                println("HelloWorldServer: addTx: sending gossip to ${follower}")
-
                 if (follower == my_ip)
                     continue
+
+                println("HelloWorldServer: addTx: sending gossip to ${follower}")
 
                 val channel = ManagedChannelBuilder.forAddress(follower, 50051).usePlaintext().build()
                 val client = HelloWorldClient(channel)
                 client.addTx(request)
                 channel.shutdown()
             }
+
             println("sending induced utxos")
             val other_shards_induced_utxos = induced_utxos.filter { it !in this_shard_induced_utxos }
             sendInducedUTxOS(other_shards_induced_utxos)
             return internalResponse { status = 0 }
         }
+
         override suspend fun addUTxOs(request: UTxOList): InternalResponse {
 
             val utxo_list = request.utxosList
@@ -624,12 +609,9 @@ class HelloWorldServer(private val ip: String) {
 
         suspend fun validateAtomicTxList(request: AtomicTxListRequest): Boolean {
             val all_utxos_required: List<UTxO> = request.txListList.map { it.inputsList }.flatten()
-            println("all inputs are\n${all_utxos_required}")
 
-            println("All utxos required.distinct ${all_utxos_required.distinct()}")
             // Checking that all utxos used are present
             for (utxo in all_utxos_required.distinct()) {
-                println("HERE")
                 if (Collections.frequency(all_utxos_required, utxo) > queryUTxO(utxo).occurrences) {
                     for (utxo in all_utxos_required.distinct()) {
                         setAtomicingFalse(utxo)
@@ -649,9 +631,7 @@ class HelloWorldServer(private val ip: String) {
                     return false
                 }
             }
-
             return true
-
         }
 
         override suspend fun setAtomicingFalse(request: UTxO): Empty {

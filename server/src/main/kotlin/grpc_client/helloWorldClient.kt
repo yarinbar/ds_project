@@ -14,57 +14,6 @@ import kotlin.reflect.jvm.internal.impl.builtins.StandardNames.FqNames.target
 class HelloWorldClient(private val channel: ManagedChannel) : Closeable {
 
     private val public_stub : UserServicesGrpcKt.UserServicesCoroutineStub = UserServicesGrpcKt.UserServicesCoroutineStub(channel)
-    var num_shards : Int = System.getenv("NUM_SHARDS").toInt()
-
-
-
-    suspend fun get_history(addr: String, n: Int) : List<Tx>{
-
-        val request = HistoryRequest.newBuilder()
-            .setAddr(addr)
-            .setLimit(n.toLong())
-            .build()
-
-        // retrieve all addresses
-        if (addr == ""){
-            println("Broadcast address - getting all history in my shard")
-            val shard_history = public_stub.getHistory(request)
-            println("Now getting all histories from other shards...")
-            val other_shards_hist = public_stub.getHistory(request)
-            // TODO - unify and sort results and use n to take top
-            return shard_history.txsList
-        }
-
-
-        // specific address that is not in shard
-//        if ((addr.toBigInteger() % num_shards.toBigInteger()).toInt() != shard){
-//            println("That is not my shard, forwarding to correct shard")
-//            // TODO - forward to correct shard
-//            val empty_response = HistoryResponse.newBuilder()
-//                .build()
-//
-//            return empty_response.txsList
-//        }
-
-        println("That address is in my shard, fetching the relevant txs")
-        val history = public_stub.getHistory(request)
-        val history_list = history.txsList.toList()
-//        val sorted_history: List<Tx> = history_list.sortedWith(compareByDescending { it.timestamp })
-
-
-        // slicing relevant part
-        var effictive_hist_len: Int
-
-        if (n < 0){
-            effictive_hist_len = history_list.size
-        }
-        else{
-            effictive_hist_len = min(n, history_list.size)
-        }
-        val n_history_list = history_list.subList(0, effictive_hist_len)
-
-        return n_history_list
-    }
 
       suspend fun send_money(src_addr: String, dst_addr: String, coins: ULong) : SendMoneyResponse{
         println("SEND MONEY CLIENT")
@@ -81,8 +30,13 @@ class HelloWorldClient(private val channel: ManagedChannel) : Closeable {
             .build()
 
         println("Attempting to send ${coins} coins from ${src_addr} to ${dst_addr}")
-        val send_money_response = public_stub.sendMoney(request = send_money_request)
-        return send_money_response
+        try{
+          val send_money_response = public_stub.withDeadlineAfter(60,TimeUnit.SECONDS).sendMoney(request = send_money_request)
+          return send_money_response
+        }
+        catch(e:Exception){
+            return sendMoneyResponse { txId="Server timed out. Check the ledger history and try again if needed" }
+        }
     }
     suspend fun getUtxos(addr: String,limit:Int):UTxOResponse{
         println("GET ${limit} UTXOS CLIENT")
@@ -90,9 +44,14 @@ class HelloWorldClient(private val channel: ManagedChannel) : Closeable {
             limit.toLong()
         ).build()
         println("getting utxos for ${addr}")
-        val get_utxo_response = public_stub.getUTxOs(request = get_utxo_request)
-        print("GOT UTXOS!")
-        return get_utxo_response
+        try{
+            val get_utxo_response = public_stub.withDeadlineAfter(60,TimeUnit.SECONDS).getUTxOs(request = get_utxo_request)
+            print("GOT UTXOS!")
+            return get_utxo_response
+        }
+        catch(e:Exception){
+            return uTxOResponse { utxos.addAll(listOf(uTxO { txId = "Server timed out. Check the ledger history and try again if needed" })) }
+        }
     }
     suspend fun getAddrHistory(addr:String,limit:Int):HistoryResponse{
         println("GET HISTORY CLIENT")
@@ -100,32 +59,42 @@ class HelloWorldClient(private val channel: ManagedChannel) : Closeable {
             limit.toLong()
         ).build()
         println("getting history for ${addr}")
-        val get_history_response = public_stub.getHistory(request = get_history_request)
-        print("GOT history!")
-        return get_history_response
+        try{
+            val get_history_response = public_stub.withDeadlineAfter(60,TimeUnit.SECONDS).getHistory(request = get_history_request)
+            print("GOT history!")
+            return get_history_response
+        }
+        catch(e:Exception){
+            return historyResponse { txs.addAll(listOf(tx { txId = "Server timed out. Check the ledger history and try again if needed" })) }
+        }
     }
 
     suspend fun getEntireHistory():HistoryResponse{
-        val entire_history_response = public_stub.getEntireHistory(empty {  })
-        return entire_history_response
+        try{
+            val entire_history_response = public_stub.withDeadlineAfter(60,TimeUnit.SECONDS).getEntireHistory(empty {  })
+            return entire_history_response
+        }
+        catch(e:Exception){
+            return historyResponse { txs.addAll(listOf(tx { txId = "Server timed out. Check the ledger history and try again if needed" })) }
+        }
     }
 
     suspend fun getShardHistory():HistoryResponse{
-        val shard_history = public_stub.getShardHistory(empty {  })
+        val shard_history = public_stub.withDeadlineAfter(60,TimeUnit.SECONDS).getShardHistory(empty {  })
         return shard_history
     }
 
 
     suspend fun sendInducedUTxO(utxo: UTxO): InternalResponse{
         println("HelloWorldClient: sendInducedUTxO: submitting induced utxo to server")
-        return public_stub.otherShardInducedUTxO(utxo)
+        return public_stub.withDeadlineAfter(60,TimeUnit.SECONDS).otherShardInducedUTxO(utxo)
     }
 
     suspend fun submitTx(tx: Tx): SendMoneyResponse{
         println("HelloWorldClient: submitting transaction to server")
 
         try{
-            val ret = public_stub.withDeadlineAfter(30,TimeUnit.SECONDS).submitTx(tx)
+            val ret = public_stub.withDeadlineAfter(60,TimeUnit.SECONDS).submitTx(tx)
             return ret
         }
         catch(e:Exception){
@@ -136,8 +105,14 @@ class HelloWorldClient(private val channel: ManagedChannel) : Closeable {
 
     suspend fun submitAtomicTxList(tx_list: AtomicTxListRequest) : AtomicTxListResponse{
         println("HelloWorldClient: submitAtomicTxList: submitting to server")
-        val ret = public_stub.submitAtomicTxList(tx_list)
-        return ret
+        try{
+
+            val ret = public_stub.withDeadlineAfter(60,TimeUnit.SECONDS).submitAtomicTxList(tx_list)
+            return ret
+        }
+        catch(e:Exception){
+            return atomicTxListResponse { txIdsList.addAll(listOf(sendMoneyResponse { txId = "Server timed out. Check the ledger history and try again if needed" })) }
+        }
     }
 
     suspend fun queryUTxO(utxo: UTxO) : QueryUTxOResponse{
@@ -165,7 +140,6 @@ class HelloWorldClient(private val channel: ManagedChannel) : Closeable {
         val ret = public_stub.addUTxOs(utxo_list)
         return ret
     }
-
 
     override fun close() {
         channel.shutdown().awaitTermination(5, TimeUnit.SECONDS)

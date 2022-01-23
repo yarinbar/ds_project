@@ -565,11 +565,29 @@ class HelloWorldServer(private val ip: String) {
         }
 
         override suspend fun submitAtomicTxList(request: AtomicTxListRequest): AtomicTxListResponse {
+            val shard_leader = get_shard_leader(find_addr_shard(request.txListList[0].inputsList[0].addr))
+
+            if (my_ip == shard_leader) {
+                println("HelloWorldServer: submitAtomicTxList: My shard and I am the leader - processing request")
+                return submitAtomicTxListImp(request)
+            }
+            // option 2 - we are not in the correct shard and need to forward the request
+            else {
+                println("HelloWorldServer: submitAtomicTxList: Not my shard or not leader in my shard - not my problem")
+
+                val channel = ManagedChannelBuilder.forAddress(shard_leader, 50051).usePlaintext().build()
+                val client = HelloWorldClient(channel)
+                var res= client.submitAtomicTxList(request)
+                channel.shutdown()
+                return res
+            }
+        }
+
+        suspend fun submitAtomicTxListImp(request: AtomicTxListRequest): AtomicTxListResponse{
             if (!validateAtomicTxList(request))
                 return atomicTxListResponse {
                     txIdsList.addAll(listOf(sendMoneyResponse { txId = "not valid atomic tx list" }))
                 }
-
             val response_list: MutableList<SendMoneyResponse> = mutableListOf()
 
             for (tx in request.txListList) {
@@ -583,6 +601,7 @@ class HelloWorldServer(private val ip: String) {
 
             return atomicTxListResponse { txIdsList.addAll(response_list) }
         }
+
 
         suspend fun validateAtomicTxList(request: AtomicTxListRequest): Boolean {
             val all_utxos_required: List<UTxO> = request.txListList.map { it.inputsList }.flatten()

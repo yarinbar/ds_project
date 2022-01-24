@@ -560,7 +560,6 @@ class HelloWorldServer(private val ip: String) {
                 return "utxo sum must match outputs sum, utxo sum: ${input_coins} output sum: ${output_coins}"
             }
 
-            // if all checks pass returns the tx_id
             return request.txId
         }
 

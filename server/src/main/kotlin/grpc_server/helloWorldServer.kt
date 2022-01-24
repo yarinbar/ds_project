@@ -393,8 +393,7 @@ class HelloWorldServer(private val ip: String) {
 
         fun submitTxImp(request: Tx): SendMoneyResponse {
             println("LEADER - submitTxImp")
-            while (atomicing)
-                println("BUSY")
+            while (atomicing){}
 
             println("submitTxImp: Beginning to process request")
 

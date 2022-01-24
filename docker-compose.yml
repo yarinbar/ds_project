@@ -8,7 +8,7 @@
 #   Deleteing all ZooKeeper sanpshots:
 #     $ docker-compose -f docker-compose.yml down -v
  
-version: '2'
+version: '3'
 
 services:
   zookeeper1:
@@ -33,6 +33,7 @@ services:
       - 10000:8080
     networks:
       - zookeeper
+    cpu_count: 1
 
   node01:
     environment:
@@ -42,6 +43,7 @@ services:
       - 10001:8080
     networks:
       - zookeeper
+    cpu_count: 1
 
   node02:
     environment:
@@ -51,6 +53,7 @@ services:
       - 10002:8080
     networks:
       - zookeeper
+    cpu_count: 1
 
   node10:
     environment:
@@ -60,6 +63,7 @@ services:
       - 10003:8080
     networks:
       - zookeeper
+    cpu_count: 1
 
   node11:
     environment:
@@ -69,6 +73,7 @@ services:
       - 10004:8080
     networks:
       - zookeeper
+    cpu_count: 1
 
   node12:
     environment:
@@ -78,6 +83,7 @@ services:
       - 10005:8080
     networks:
       - zookeeper
+    cpu_count: 1
 
 #  node2:
 #    environment:

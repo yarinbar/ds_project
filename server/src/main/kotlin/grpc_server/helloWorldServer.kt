@@ -8,7 +8,6 @@ import com.kotlingrpc.demoGrpc.generated.main.grpckt.com.kotlingrpc.demoGrpc.Hel
 import io.grpc.ManagedChannelBuilder
 import io.grpc.Server
 import io.grpc.ServerBuilder
-import io.grpc.stub.StreamObserver
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.*
@@ -152,68 +151,58 @@ class HelloWorldServer(private val ip: String) {
         server.awaitTermination()
     }
 
-    inner class UserServices : UserServicesGrpc.UserServicesImplBase() {
+    inner class UserServices : UserServicesGrpcKt.UserServicesCoroutineImplBase() {
 
         fun find_addr_shard(addr: String): Int {
             val int_addr = addr.toLong(radix = 16)
             return int_addr.mod(num_shards)
         }
 
-        override fun getShardHistory(request: Empty?, responseObserver: StreamObserver<HistoryResponse>?) {
-            try {
-                val shard_hist = ledger.values.toList().flatten()
-                responseObserver?.onNext(historyResponse {
-                    txs.addAll(shard_hist)
-                })
-            }
-            catch (ignored: Exception){}
-            responseObserver?.onCompleted()
-        }
-
-        override fun getEntireHistory(request: Empty?, responseObserver: StreamObserver<HistoryResponse>?) {
-            try {
-                var ledger = mutableListOf<Tx>()
-                for (i in 0 until num_shards) {
-                    println("GETTING HISTORY FOR SHARD ${i}")
-                    val shard_leader = get_shard_leader(i)
-                    println("getting histroy from ${shard_leader}")
-                    val target_ip = shard_leader
-                    val channel = ManagedChannelBuilder.forAddress(target_ip, 50051).usePlaintext().build()
-                    val client = HelloWorldClient(channel)
-                    ledger.addAll(client.getShardHistory().txsList)
-                    channel.shutdown()
-                }
-
-                ledger = ledger.sortedWith(compareByDescending { it.timestamp.seconds}).toMutableList()
-
-                responseObserver?.onNext(historyResponse {
-                    txs.addAll(ledger)
-                })
-            }
-            catch (ignored: Exception){}
-            responseObserver?.onCompleted()
-        }
-
-        override fun getHistory(request: HistoryRequest?, responseObserver: StreamObserver<HistoryResponse>?) {
-
-            try {
-                val shard_leader = get_shard_leader(find_addr_shard(request!!.addr))
-                if (my_ip == shard_leader) {
-                    println("Correct node, handling request")
-                    responseObserver?.onNext(getHistoryImp(request))
-                    responseObserver?.onCompleted()
-                    return
-                }
-                println("Wrong shard or not the leader! send to address ${shard_leader}")
+        override suspend fun getEntireHistory(request: Empty): HistoryResponse {
+//            for each shard leader get entire ledger, merge and order
+            var ledger = mutableListOf<Tx>()
+            for (i in 0 until System.getenv("NUM_SHARDS").toInt()) {
+                println("GETTING HISTORY FOR SHARD ${i}")
+                val shard_leader = get_shard_leader(i)
+//                if (my_ip == shard_leader) {
+//                    println("Correct node, handling request")
+//                    return getHistoryImp(request)
+//                }
+                println("getting histroy from ${shard_leader}")
                 val target_ip = shard_leader
                 val channel = ManagedChannelBuilder.forAddress(target_ip, 50051).usePlaintext().build()
                 val client = HelloWorldClient(channel)
-                val res = client.getAddrHistory(request.addr, request.limit.toInt())
+                ledger.addAll(client.getShardHistory().txsList)
                 channel.shutdown()
-                responseObserver?.onNext(res)
+
             }
-            catch (ignored: Exception){}
-            responseObserver?.onCompleted()
+            ledger = ledger.sortedWith(compareByDescending { it.timestamp.seconds}).toMutableList()
+            return historyResponse {
+                txs.addAll(ledger)
+            }
+        }
+
+        override suspend fun getShardHistory(request: Empty): HistoryResponse {
+            var shard_hist = ledger.values.toList().flatten()
+            return historyResponse {
+                txs.addAll(shard_hist)
+            }
+        }
+
+        override suspend fun getHistory(request: HistoryRequest): HistoryResponse {
+
+            val shard_leader = get_shard_leader(find_addr_shard(request.addr))
+            if (my_ip == shard_leader) {
+                println("Correct node, handling request")
+                return getHistoryImp(request)
+            }
+            println("Wrong shard or not the leader! send to address ${shard_leader}")
+            val target_ip = shard_leader
+            val channel = ManagedChannelBuilder.forAddress(target_ip, 50051).usePlaintext().build()
+            val client = HelloWorldClient(channel)
+            val res = client.getAddrHistory(request.addr, request.limit.toInt())
+            channel.shutdown()
+            return res
         }
 
         fun getHistoryImp(request: HistoryRequest): HistoryResponse {
@@ -238,27 +227,21 @@ class HelloWorldServer(private val ip: String) {
             return grpc_tx_hist
         }
 
-        override fun getUTxOs(request: UTxORequest?, responseObserver: StreamObserver<UTxOResponse>?) {
+        override suspend fun getUTxOs(request: UTxORequest): UTxOResponse {
 
-            try {
-                println("GET UTXO SERVER")
-                val shard_leader = get_shard_leader(find_addr_shard(request!!.addr))
-                if (my_ip == shard_leader) {
-                    println("Correct node, handling request")
-                    responseObserver?.onNext(getUTxOsImp(request))
-                    responseObserver?.onCompleted()
-                    return
-                }
-                println("Wrong shard or not the leader! send to address ${shard_leader}")
-                val target_ip = shard_leader
-                val channel = ManagedChannelBuilder.forAddress(target_ip, 50051).usePlaintext().build()
-                val client = HelloWorldClient(channel)
-                val res= client.getUtxos(request.addr, request.limit.toInt())
-                channel.shutdown()
-                responseObserver?.onNext(res)
+            println("GET UTXO SERVER")
+            val shard_leader = get_shard_leader(find_addr_shard(request.addr))
+            if (my_ip == shard_leader) {
+                println("Correct node, handling request")
+                return getUTxOsImp(request)
             }
-            catch (ignored: Exception){}
-            responseObserver?.onCompleted()
+            println("Wrong shard or not the leader! send to address ${shard_leader}")
+            val target_ip = shard_leader
+            val channel = ManagedChannelBuilder.forAddress(target_ip, 50051).usePlaintext().build()
+            val client = HelloWorldClient(channel)
+            val res= client.getUtxos(request.addr, request.limit.toInt())
+            channel.shutdown()
+            return res
         }
 
         fun getUTxOsImp(request: UTxORequest): UTxOResponse {
@@ -280,29 +263,23 @@ class HelloWorldServer(private val ip: String) {
             return grpc_utxos_hist
         }
 
-        override fun sendMoney(request: SendMoneyRequest?, responseObserver: StreamObserver<SendMoneyResponse>?) {
-            try{
-                val shard_leader = get_shard_leader(find_addr_shard(request!!.srcAddr))
-                if (my_ip == shard_leader) {
-                    println("Correct node, handling request")
-                    responseObserver?.onNext(sendMoneyImp(request))
-                    responseObserver?.onCompleted()
-                    return
-                }
-
-                println("Wrong shard or not the leader! send to address ${shard_leader}")
-                val target_ip = shard_leader
-                val channel = ManagedChannelBuilder.forAddress(target_ip, 50051).usePlaintext().build()
-                val client = HelloWorldClient(channel)
-                var res = client.send_money(request.srcAddr, request.dstAddr, request.coins.toULong())
-                channel.shutdown()
-                responseObserver?.onNext(res)
+        override suspend fun sendMoney(request: SendMoneyRequest): SendMoneyResponse {
+            val shard_leader = get_shard_leader(find_addr_shard(request.srcAddr))
+            if (my_ip == shard_leader) {
+                println("Correct node, handling request")
+                return sendMoneyImp(request)
             }
-            catch (ignored: Exception){}
-            responseObserver?.onCompleted()
+
+            println("Wrong shard or not the leader! send to address ${shard_leader}")
+            val target_ip = shard_leader
+            val channel = ManagedChannelBuilder.forAddress(target_ip, 50051).usePlaintext().build()
+            val client = HelloWorldClient(channel)
+            var res = client.send_money(request.srcAddr, request.dstAddr, request.coins.toULong())
+            channel.shutdown()
+            return res
         }
 
-        fun sendMoneyImp(request: SendMoneyRequest): SendMoneyResponse {
+        suspend fun sendMoneyImp(request: SendMoneyRequest): SendMoneyResponse {
             val src_addr = request.srcAddr
             val dst_addr = request.dstAddr
             val coins_ = request.coins.toULong()
@@ -353,51 +330,42 @@ class HelloWorldServer(private val ip: String) {
             return submitTxImp(new_tx)
         }
 
-        override fun submitTx(request: Tx?, responseObserver: StreamObserver<SendMoneyResponse>?) {
-            try{
-                val inputs = request!!.inputsList
+        override suspend fun submitTx(request: Tx): SendMoneyResponse {
+            val inputs = request.inputsList
 
-                if (inputs.size == 0) {
-                    responseObserver?.onNext(sendMoneyResponse {
-                        txId = "tx needs to include at least 1 utxo"
-                    })
-                    responseObserver?.onCompleted()
-                    return
+            if (inputs.size == 0)
+                return sendMoneyResponse {
+                    txId = "tx needs to include at least 1 utxo"
                 }
 
-                val utxo_src_addr = request.inputsList[0].addr
-                val target_shard = find_addr_shard(utxo_src_addr)
-                val shard_leader = get_shard_leader(target_shard)
+            val utxo_src_addr = request.inputsList[0].addr
+            val target_shard = find_addr_shard(utxo_src_addr)
+            val shard_leader = get_shard_leader(target_shard)
 
-                // -------------- Checking if the UTxOs provided are present -------------
-                // Option 1 - we are in the correct shard so we can check this address
-                if (my_ip == shard_leader) {
-                    println("HelloWorldServer: submitTx: My shard and I am the leader - processing request")
-                    responseObserver?.onNext(submitTxImp(request))
-                    responseObserver?.onCompleted()
-                    return
-                }
-                // option 2 - we are not in the correct shard and need to forward the request
-                else {
-                    println("HelloWorldServer: submitTx: Not my shard or not leader in my shard - not my problem")
-                    val channel = ManagedChannelBuilder.forAddress(shard_leader, 50051).usePlaintext().build()
-                    val client = HelloWorldClient(channel)
-                    var res= client.submitTx(request)
-                    channel.shutdown()
-                    responseObserver?.onNext(res)
-                }
+            // -------------- Checking if the UTxOs provided are present -------------
+            // Option 1 - we are in the correct shard so we can check this address
+            if (my_ip == shard_leader) {
+                println("HelloWorldServer: submitTx: My shard and I am the leader - processing request")
+                return submitTxImp(request)
             }
-            catch (ignored: Exception){}
-            responseObserver?.onCompleted()
+            // option 2 - we are not in the correct shard and need to forward the request
+            else {
+                println("HelloWorldServer: submitTx: Not my shard or not leader in my shard - not my problem")
+                val channel = ManagedChannelBuilder.forAddress(shard_leader, 50051).usePlaintext().build()
+                val client = HelloWorldClient(channel)
+                var res= client.submitTx(request)
+                channel.shutdown()
+                return res
+            }
         }
 
-        fun submitTxImp(request: Tx): SendMoneyResponse {
+        suspend fun submitTxImp(request: Tx): SendMoneyResponse {
             println("LEADER - submitTxImp")
             while (atomicing)
                 println("BUSY")
 
             println("submitTxImp: Beginning to process request")
-
+            atomicing=true
             val validation_res = validateTx(request)
 
             // If tx is not valid for any reason, return the issue
@@ -411,45 +379,42 @@ class HelloWorldServer(private val ip: String) {
 
             val tx = request
 
-            addTxImp(tx)
+            addTx(tx)
+            atomicing=false
             println("HelloWorldServer: submitTxImp: Done successfully!")
             return sendMoneyResponse { txId = tx.txId }
         }
 
-        override fun otherShardInducedUTxO(request: UTxO, responseObserver: StreamObserver<InternalResponse>?) {
+        override suspend fun otherShardInducedUTxO(request: UTxO): InternalResponse {
 
-            try{
-                addUTxOsImp(uTxOList { utxos.addAll(listOf(request)) })
+            var res = addUTxOs(uTxOList { utxos.addAll(listOf(request)) })
 
-                val followers = get_shard_nodes(my_shard).minus(get_shard_leader(my_shard))
-                println("HelloWorldServer: otherShardInducedUTxO: sending messages to ${followers}")
-
-                for (follower in followers) {
-                    println("HelloWorldServer: otherShardInducedUTxO: sending to ${get_shard_nodes(my_shard)}")
-                    val channel = ManagedChannelBuilder.forAddress(follower, 50051).usePlaintext().build()
-                    val client = HelloWorldClient(channel)
-
-                    // adding induced
-                    val utxo_list = uTxOList { utxos.addAll(listOf(request)) }
-
-
-                    val res = client.addUTxOs(utxo_list)
-
-                    channel.shutdown()
-                    if (res.status != 0) {
-                        responseObserver?.onNext(res)
-                        responseObserver?.onCompleted()
-                        return
-                    }
-
-                }
-                responseObserver?.onNext(internalResponse { status = 0 })
+            if (res.status != 0) {
+                return res
             }
-            catch (ignored: Exception){}
-            responseObserver?.onCompleted()
+
+            val followers = get_shard_nodes(my_shard).minus(get_shard_leader(my_shard))
+            println("HelloWorldServer: otherShardInducedUTxO: sending messages to ${followers}")
+
+            for (follower in followers) {
+                println("HelloWorldServer: otherShardInducedUTxO: sending to ${get_shard_nodes(my_shard)}")
+                val channel = ManagedChannelBuilder.forAddress(follower, 50051).usePlaintext().build()
+                val client = HelloWorldClient(channel)
+
+                // adding induced
+                res = client.addUTxOs(uTxOList {
+                    utxos.addAll(listOf(request))
+                })
+                channel.shutdown()
+                if (res.status != 0) {
+                    return res
+                }
+
+            }
+            return internalResponse { status = 0 }
         }
 
-        fun sendInducedUTxOS(utxo_list: List<UTxO>): InternalResponse {
+        suspend fun sendInducedUTxOS(utxo_list: List<UTxO>): InternalResponse {
 
             for (utxo in utxo_list) {
                 println("HelloWorldServer: sendInducedUTxOS: sending ")
@@ -464,22 +429,7 @@ class HelloWorldServer(private val ip: String) {
 
         }
 
-        override fun addTx(request: Tx, responseObserver: StreamObserver<InternalResponse>?) {
-
-            try{
-                val src_addr = request.inputsList[0].addr
-                val target_shard = find_addr_shard(src_addr)
-
-                println("HelloWorldServer: addTx: processing...")
-                addTxImp(request)
-                responseObserver?.onNext(internalResponse { status = 0 })
-                responseObserver?.onCompleted()
-            }
-            catch (ignored: Exception){}
-            responseObserver?.onCompleted()
-        }
-
-        fun addTxImp(request: Tx){
+        override suspend fun addTx(request: Tx): InternalResponse {
 
             val src_addr = request.inputsList[0].addr
             val induced_utxos = tx_to_induced(request)
@@ -492,7 +442,7 @@ class HelloWorldServer(private val ip: String) {
             if (ledger.containsKey(src_addr)) {
                 if (ledger[src_addr]?.contains(request) == true){
                     println("HelloWorldServer: addTx: server ${my_ip} in shard ${my_shard} tried to add ${request.txId} but already exists! Ending here")
-                    return
+                    return internalResponse { status = 0 }
                 }
                 ledger[src_addr]?.add(request)
             } else {
@@ -544,20 +494,11 @@ class HelloWorldServer(private val ip: String) {
             println("sending induced utxos")
             val other_shards_induced_utxos = induced_utxos.filter { it !in this_shard_induced_utxos }
             sendInducedUTxOS(other_shards_induced_utxos)
+            return internalResponse { status = 0 }
         }
 
-        override fun addUTxOs(request: UTxOList?, responseObserver: StreamObserver<InternalResponse>?) {
+        override suspend fun addUTxOs(request: UTxOList): InternalResponse {
 
-            try{
-
-                addUTxOsImp(request!!)
-                responseObserver?.onNext(internalResponse { status = 0 })
-            }
-            catch (ignored: Exception){}
-            responseObserver?.onCompleted()
-        }
-
-        fun addUTxOsImp(request: UTxOList): Unit{
             val utxo_list = request.utxosList
             var need_to_gossip = true
 
@@ -579,7 +520,7 @@ class HelloWorldServer(private val ip: String) {
                 println("HelloWorldServer: addUTxOs: server ${my_ip} in shard ${my_shard} added ${utxo.utxoId} to utxos successfully")
             }
 
-            if (need_to_gossip) {
+            if (need_to_gossip){
                 println("HelloWorldServer: addUTxOs: im gossiping! ${my_ip}")
                 val followers = get_shard_nodes(my_shard).minus(get_shard_leader(my_shard))
 
@@ -599,6 +540,8 @@ class HelloWorldServer(private val ip: String) {
 
                 }
             }
+
+            return internalResponse { status = 0 }
         }
 
         fun validateTx(request: Tx): String {
@@ -617,175 +560,142 @@ class HelloWorldServer(private val ip: String) {
                 return "utxo sum must match outputs sum, utxo sum: ${input_coins} output sum: ${output_coins}"
             }
 
-            // if all checks pass returns the tx_id
             return request.txId
         }
 
-//        override fun submitAtomicTxList(
-//            request: AtomicTxListRequest?,
-//            responseObserver: StreamObserver<AtomicTxListResponse>?
-//        ) {
-//            try{
-//                if (!validateAtomicTxList(request!!)) {
-//                    responseObserver?.onNext(atomicTxListResponse {
-//                        txIdsList.addAll(listOf(sendMoneyResponse { txId = "not valid atomic tx list" }))
-//                    })
-//                    responseObserver?.onCompleted()
-//                }
-//
-//                val src_addr = request!!.txListList[0].inputsList[0].addr
-//                val target_shard = find_addr_shard(src_addr)
-//                val shard_leader = get_shard_leader(target_shard)
-//
-//                // -------------- Checking if the UTxOs provided are present -------------
-//                // Option 1 - we are in the correct shard so we can check this address
-//                if (my_ip == shard_leader) {
-//                    println("HelloWorldServer: submitAtomicTxList: My shard and I am the leader - processing atomic list")
-//                    submitAtomicTxListImp(request)
-//                    responseObserver?.onCompleted()
-//                }
-//
-//                val channel = ManagedChannelBuilder.forAddress(shard_leader, 50051).usePlaintext().build()
-//                val client = HelloWorldClient(channel)
-//                val res = client.setAtomicingFalse(request)
-//                channel.shutdown()
-//                responseObserver?.onNext(res)
-//
-//                val response_list: MutableList<SendMoneyResponse> = mutableListOf()
-//
-//                for (tx in request.txListList) {
-//                    setAtomicingFalse(tx.inputsList[0])
-//                    response_list.add(submitTx(tx))
-//                    setAtomicingTrue(tx.inputsList[0])
-//                }
-//
-//                for (tx in request.txListList)
-//                    setAtomicingFalse(tx.inputsList[0])
-//
-//                responseObserver?.onNext(atomicTxListResponse { txIdsList.addAll(response_list) })
-//            }
-//            catch (ignored: Exception){}
-//            responseObserver?.onCompleted()
-//        }
-//
-//        fun submitAtomicTxListImp(request: AtomicTxListRequest): Unit{
-//
-//        }
-//
-//        fun validateAtomicTxList(request: AtomicTxListRequest): Boolean {
-//            val all_utxos_required: List<UTxO> = request.txListList.map { it.inputsList }.flatten()
-//
-//            // Checking that all utxos used are present
-//            for (utxo in all_utxos_required.distinct()) {
-//                if (Collections.frequency(all_utxos_required, utxo) > queryUTxO(utxo).occurrences) {
-//                    for (utxo in all_utxos_required.distinct()) {
-//                        setAtomicingFalse(utxo)
-//                    }
-//                    return false
-//                }
-//            }
-//
-//            for (tx in request.txListList){
-//                val inputs = tx.inputsList
-//                val outputs = tx.outputsList
-//
-//                val input_coins = inputs.map { it.coins }.sum()
-//                val output_coins = outputs.map { it.coins }.sum()
-//
-//                if (output_coins !=input_coins) {
-//                    return false
-//                }
-//            }
-//            return true
-//        }
+        override suspend fun submitAtomicTxList(request: AtomicTxListRequest): AtomicTxListResponse {
+            val shard_leader = get_shard_leader(find_addr_shard(request.txListList[0].inputsList[0].addr))
 
-        override fun setAtomicingFalse(request: UTxO?, responseObserver: StreamObserver<Empty>?) {
-            try{
-                val src_addr = request!!.addr
-                val target_shard = find_addr_shard(src_addr)
-                val shard_leader = get_shard_leader(target_shard)
+            if (my_ip == shard_leader) {
+                println("HelloWorldServer: submitAtomicTxList: My shard and I am the leader - processing request")
+                return submitAtomicTxListImp(request)
+            }
+            // option 2 - we are not in the correct shard and need to forward the request
+            else {
+                println("HelloWorldServer: submitAtomicTxList: Not my shard or not leader in my shard - not my problem")
 
-                // -------------- Checking if the UTxOs provided are present -------------
-                // Option 1 - we are in the correct shard so we can check this address
-                if (my_ip == shard_leader) {
-                    println("HelloWorldServer: setAtomicingFalse: My shard and I am the leader - setting atomicing back to false")
-                    setAtomicingFalseImp(request)
-                    responseObserver?.onCompleted()
+                val channel = ManagedChannelBuilder.forAddress(shard_leader, 50051).usePlaintext().build()
+                val client = HelloWorldClient(channel)
+                var res= client.submitAtomicTxList(request)
+                channel.shutdown()
+                return res
+            }
+        }
+
+        suspend fun submitAtomicTxListImp(request: AtomicTxListRequest): AtomicTxListResponse{
+            if (!validateAtomicTxList(request))
+                return atomicTxListResponse {
+                    txIdsList.addAll(listOf(sendMoneyResponse { txId = "not valid atomic tx list" }))
                 }
-                // option 2 - we are not in the correct shard and need to forward the request
-                else {
-                    val channel = ManagedChannelBuilder.forAddress(shard_leader, 50051).usePlaintext().build()
-                    val client = HelloWorldClient(channel)
-                    val res =client.setAtomicingFalse(request)
-                    channel.shutdown()
-                    responseObserver?.onNext(res)
+            val response_list: MutableList<SendMoneyResponse> = mutableListOf()
+
+            for (tx in request.txListList) {
+                setAtomicingFalse(tx.inputsList[0])
+                response_list.add(submitTx(tx))
+                setAtomicingTrue(tx.inputsList[0])
+            }
+
+            for (tx in request.txListList)
+                setAtomicingFalse(tx.inputsList[0])
+
+            return atomicTxListResponse { txIdsList.addAll(response_list) }
+        }
+
+
+        suspend fun validateAtomicTxList(request: AtomicTxListRequest): Boolean {
+            val all_utxos_required: List<UTxO> = request.txListList.map { it.inputsList }.flatten()
+
+            // Checking that all utxos used are present
+            for (utxo in all_utxos_required.distinct()) {
+                if (Collections.frequency(all_utxos_required, utxo) > queryUTxO(utxo).occurrences) {
+                    for (utxo in all_utxos_required.distinct()) {
+                        setAtomicingFalse(utxo)
+                    }
+                    return false
                 }
             }
-            catch (ignored: Exception){}
-            responseObserver?.onCompleted()
-        }
 
-        fun setAtomicingFalseImp(request: UTxO): Unit{
-            atomicing = false
-        }
+            for (tx in request.txListList){
+                val inputs = tx.inputsList
+                val outputs = tx.outputsList
 
-        override fun setAtomicingTrue(request: UTxO?, responseObserver: StreamObserver<Empty>?) {
-            try{
-                val src_addr = request!!.addr
-                val target_shard = find_addr_shard(src_addr)
-                val shard_leader = get_shard_leader(target_shard)
+                val input_coins = inputs.map { it.coins }.sum()
+                val output_coins = outputs.map { it.coins }.sum()
 
-                // -------------- Checking if the UTxOs provided are present -------------
-                // Option 1 - we are in the correct shard so we can check this address
-                if (my_ip == shard_leader) {
-                    println("HelloWorldServer: setAtomicingTrue: My shard and I am the leader - setting atomicing back to true")
-                    setAtomicingTrueImp(request)
-                    responseObserver?.onCompleted()
-                }
-                // option 2 - we are not in the correct shard and need to forward the request
-                else {
-                    val channel = ManagedChannelBuilder.forAddress(shard_leader, 50051).usePlaintext().build()
-                    val client = HelloWorldClient(channel)
-                    val res = client.setAtomicingFalse(request)
-                    channel.shutdown()
-                    responseObserver?.onNext(res)
+                if (output_coins !=input_coins) {
+                    return false
                 }
             }
-            catch (ignored: Exception){}
-            responseObserver?.onCompleted()
+            return true
         }
 
-        fun setAtomicingTrueImp(request: UTxO): Unit{
-            atomicing = true
-        }
+        override suspend fun setAtomicingFalse(request: UTxO): Empty {
+            val src_addr = request.addr
+            val target_shard = find_addr_shard(src_addr)
+            val shard_leader = get_shard_leader(target_shard)
 
-        override fun queryUTxO(request: UTxO?, responseObserver: StreamObserver<QueryUTxOResponse>?) {
-
-            try {
-                val src_addr = request!!.addr
-                val target_shard = find_addr_shard(src_addr)
-                val shard_leader = get_shard_leader(target_shard)
-
-                // -------------- Checking if the UTxOs provided are present -------------
-                // Option 1 - we are in the correct shard so we can check this address
-                if (my_ip == shard_leader) {
-                    println("HelloWorldServer: queryUTxO: My shard and I am the leader - processing request")
-                    responseObserver?.onNext(queryUTxOResponse { occurrences = queryUTxOImp(request) })
-                    responseObserver?.onCompleted()
-                }
-                // option 2 - we are not in the correct shard and need to forward the request
-                else {
-                    println("HelloWorldServer: queryUTxO: Not my shard or not leader in my shard - not my problem")
-                    val channel = ManagedChannelBuilder.forAddress(shard_leader, 50051).usePlaintext().build()
-                    val client = HelloWorldClient(channel)
-                    val res = client.queryUTxO(request)
-                    channel.shutdown()
-                    responseObserver?.onNext(res)
-                }
+            // -------------- Checking if the UTxOs provided are present -------------
+            // Option 1 - we are in the correct shard so we can check this address
+            if (my_ip == shard_leader) {
+                println("HelloWorldServer: queryUTxO: My shard and I am the leader - setting atomicing back to false")
+                atomicing = false
+                return empty { }
             }
-            catch (ignored: Exception){}
-            responseObserver?.onCompleted()
+            // option 2 - we are not in the correct shard and need to forward the request
+            else {
+                println("HelloWorldServer: queryUTxO: Not my shard or not leader in my shard - not my problem")
+                val channel = ManagedChannelBuilder.forAddress(shard_leader, 50051).usePlaintext().build()
+                val client = HelloWorldClient(channel)
+                var res =client.setAtomicingFalse(request)
+                channel.shutdown()
+                return res
+            }
+        }
 
+        override suspend fun setAtomicingTrue(request: UTxO): Empty {
+            val src_addr = request.addr
+            val target_shard = find_addr_shard(src_addr)
+            val shard_leader = get_shard_leader(target_shard)
+
+            // -------------- Checking if the UTxOs provided are present -------------
+            // Option 1 - we are in the correct shard so we can check this address
+            if (my_ip == shard_leader) {
+                println("HelloWorldServer: queryUTxO: My shard and I am the leader - setting atomicing back to false")
+                atomicing = true
+                return empty { }
+            }
+            // option 2 - we are not in the correct shard and need to forward the request
+            else {
+                println("HelloWorldServer: queryUTxO: Not my shard or not leader in my shard - not my problem")
+                val channel = ManagedChannelBuilder.forAddress(shard_leader, 50051).usePlaintext().build()
+                val client = HelloWorldClient(channel)
+                val res = client.setAtomicingTrue(request)
+                channel.shutdown()
+                return res
+            }
+        }
+
+        override suspend fun queryUTxO(request: UTxO): QueryUTxOResponse {
+
+            val src_addr = request.addr
+            val target_shard = find_addr_shard(src_addr)
+            val shard_leader = get_shard_leader(target_shard)
+
+            // -------------- Checking if the UTxOs provided are present -------------
+            // Option 1 - we are in the correct shard so we can check this address
+            if (my_ip == shard_leader) {
+                println("HelloWorldServer: queryUTxO: My shard and I am the leader - processing request")
+                return queryUTxOResponse { occurrences = queryUTxOImp(request) }
+            }
+            // option 2 - we are not in the correct shard and need to forward the request
+            else {
+                println("HelloWorldServer: queryUTxO: Not my shard or not leader in my shard - not my problem")
+                val channel = ManagedChannelBuilder.forAddress(shard_leader, 50051).usePlaintext().build()
+                val client = HelloWorldClient(channel)
+                var res = client.queryUTxO(request)
+                channel.shutdown()
+                return res
+            }
         }
 
         fun queryUTxOImp(utxo: UTxO): Int {

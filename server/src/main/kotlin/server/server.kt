@@ -42,7 +42,7 @@ class TransactionsManager {
 
     fun getUtxos(addr: String,n:Int=-1):String = runBlocking {
         val utxos = client.getUtxos(addr,n)
-        return@runBlocking "These are the UTxOs for address ${addr}:\n${JsonFormat.printer().print(utxos)}"
+        return@runBlocking JsonFormat.printer().print(utxos)
     }
 
     fun getAddrHistory(addr: String,n:Int=-1):String = runBlocking{
@@ -94,7 +94,7 @@ class TMController(private val transactionsManager: TransactionsManager) {
     data class SerTr(val addr: String, val coins: Long)
 
     @Serializable
-    data class SerUTxO(val addr: String, val tx_id: String, val utxo_id: String, val coins: Long)
+    data class SerUTxO(val addr: String, val txId: String, val utxoId: String, val coins: Long)
 
     @Serializable
     data class SerTx(val inputs: MutableList<SerUTxO>, val outputs: MutableList<SerTr>)
@@ -106,8 +106,8 @@ class TMController(private val transactionsManager: TransactionsManager) {
         for (utxo in tx.inputs) {
             // not adding coins because it adds another validity check
             inputs.add(uTxO {
-                txId = utxo.tx_id
-                utxoId = utxo.utxo_id
+                txId = utxo.txId
+                utxoId = utxo.utxoId
                 addr = utxo.addr
                 coins = utxo.coins
             })

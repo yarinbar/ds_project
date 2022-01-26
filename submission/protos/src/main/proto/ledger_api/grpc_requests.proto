@@ -1,0 +1,99 @@
+syntax = "proto3";
+package messages;
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+option java_multiple_files = true;
+
+
+message UTxO {
+  string tx_id = 1;
+  string utxo_id = 2;
+  string addr = 3;
+  uint64 coins = 4;
+}
+
+message Tr {
+  string addr = 1;
+  uint64 coins = 2;
+}
+
+message Tx {
+  string tx_id = 1;
+  repeated UTxO inputs = 2;
+  repeated Tr outputs = 3;
+  google.protobuf.Timestamp timestamp = 4;
+}
+
+
+//------------------------- Request / Response ----------------
+
+message AtomicTxListRequest{
+  repeated Tx tx_list = 1;
+}
+
+message AtomicTxListResponse{
+  repeated SendMoneyResponse tx_ids_list = 1;
+}
+
+message QueryUTxOResponse{
+  int32 occurrences = 1;
+}
+
+message HistoryRequest{
+  string addr = 1;
+  uint64 limit = 2;
+}
+
+message HistoryResponse{
+  repeated Tx txs = 1;
+}
+
+message UTxORequest{
+  string addr = 1;
+  uint64 limit = 2;
+}
+
+message UTxOResponse{
+  repeated UTxO utxos = 1;
+}
+
+message SendMoneyRequest{
+  string src_addr = 1;
+  string dst_addr = 2;
+  uint64 coins = 3;
+}
+
+message SendMoneyResponse{
+  string tx_id = 1;
+}
+
+message InternalResponse{
+  int32 status = 1;
+}
+
+message UTxOList{
+  repeated UTxO utxos = 1;
+}
+
+
+// --------------- Services --------------------
+
+service UserServices{
+  rpc GetHistory(HistoryRequest) returns (HistoryResponse) {}
+  rpc GetEntireHistory(google.protobuf.Empty) returns (HistoryResponse) {}
+  rpc GetShardHistory(google.protobuf.Empty)  returns (HistoryResponse) {}
+  rpc GetUTxOs(UTxORequest) returns (UTxOResponse) {}
+  rpc SendMoney(SendMoneyRequest) returns (SendMoneyResponse) {}
+  rpc SubmitTx(Tx) returns (SendMoneyResponse) {}
+  rpc SubmitAtomicTxList(AtomicTxListRequest) returns (AtomicTxListResponse) {}
+  rpc QueryUTxO(UTxO) returns (QueryUTxOResponse) {}
+
+  rpc SetAtomicingFalse(UTxO) returns (google.protobuf.Empty){}
+  rpc SetAtomicingTrue(UTxO) returns (google.protobuf.Empty){}
+
+  rpc AddTx(Tx) returns (InternalResponse){}
+  rpc AddUTxOs(UTxOList) returns (InternalResponse){}
+  rpc RmUTxOs(UTxOList) returns (InternalResponse){}
+  rpc OtherShardInducedUTxO(UTxO) returns (InternalResponse){}
+}

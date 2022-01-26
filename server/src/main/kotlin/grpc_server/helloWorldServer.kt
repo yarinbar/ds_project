@@ -126,8 +126,7 @@ class HelloWorldServer(private val ip: String) {
                 this.txId = tx_id
                 this.utxoId = "00000000-0000-0000-0000-000000000000"
                 this.addr = addr
-//                this.coins = Long.MAX_VALUE
-                this.coins = 10000
+                this.coins = Long.MAX_VALUE
             }
 
             utxos.put(addr, mutableListOf(new_utxo))

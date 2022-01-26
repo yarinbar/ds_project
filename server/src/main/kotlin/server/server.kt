@@ -24,13 +24,14 @@ class TransactionsManager {
         println("here")
         val txid = client.send_money(src_addr = src_addr, dst_addr = dst_addr, coins = coins).txId
           if (txid == "-1"){return@runBlocking "Operation failed, not enough funds."}
+          else if (txid == "timeout"){return@runBlocking "Server timed out. Check the ledger history and try again if needed"}
           else
-          return@runBlocking txid
+          return@runBlocking "Operation successful! ${coins} coins sent from ${src_addr} to ${dst_addr}.\n${txid}."
     }
 
     fun submitTx(tx:Tx):String = runBlocking {
         val ret = client.submitTx(tx)
-        return@runBlocking JsonFormat.printer().print(ret)
+        return@runBlocking ret.txId
     }
 
     fun submitAtomicTxList(tx_list: AtomicTxListRequest):String = runBlocking {
@@ -41,19 +42,19 @@ class TransactionsManager {
 
     fun getUtxos(addr: String,n:Int=-1):String = runBlocking {
         val utxos = client.getUtxos(addr,n)
-        return@runBlocking JsonFormat.printer().print(utxos)
+        return@runBlocking "These are the UTxOs for address ${addr}:\n${JsonFormat.printer().print(utxos)}"
     }
 
     fun getAddrHistory(addr: String,n:Int=-1):String = runBlocking{
         println("Getting history for address ${addr}")
         val hist = client.getAddrHistory(addr,n)
-        return@runBlocking JsonFormat.printer().print(hist)
+        return@runBlocking "This is the history for address ${addr}:\n${JsonFormat.printer().print(hist)}"
     }
 
     fun getAllHistory():String = runBlocking {
         println("Getting entire ledger history ordered")
         val hist = client.getEntireHistory()
-        return@runBlocking JsonFormat.printer().print(hist)
+        return@runBlocking "This is the entire ledger history at the moment:\n${JsonFormat.printer().print(hist)}"
     }
 }
 

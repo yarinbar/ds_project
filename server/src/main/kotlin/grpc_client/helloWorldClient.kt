@@ -99,7 +99,7 @@ class HelloWorldClient(private val channel: ManagedChannel) : Closeable {
             return ret
         }
         catch(e:Exception){
-            return sendMoneyResponse { txId="Server timed out. Check the ledger history and try again if needed" }
+            return sendMoneyResponse { txId="timeout" }
         }
 
     }

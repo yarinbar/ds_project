@@ -79,11 +79,11 @@ class HelloWorldServer(private val ip: String) {
         // save new induced utxos at dest utxos
         for ((i,tr) in tx.outputsList.withIndex()) {
             var utxo_string =tx.txId.plus(i.toString())
-            var utxoId_ = UUID.nameUUIDFromBytes(utxo_string.toByteArray()).toString()
-            println("generating utxo with id ${utxoId_}")
+            var utxo_id = UUID.nameUUIDFromBytes(utxo_string.toByteArray()).toString()
+            println("generating utxo with id ${utxo_id}")
             val induced_utxo = uTxO {
                 txId = tx.txId
-                utxoId = utxoId_
+                utxoId = utxo_id
                 addr = tr.addr
                 coins = tr.coins
             }
@@ -365,7 +365,6 @@ class HelloWorldServer(private val ip: String) {
                 println("BUSY")
 
             println("submitTxImp: Beginning to process request")
-            atomicing=true
             val validation_res = validateTx(request)
 
             // If tx is not valid for any reason, return the issue
@@ -380,9 +379,8 @@ class HelloWorldServer(private val ip: String) {
             val tx = request
 
             addTx(tx)
-            atomicing=false
             println("HelloWorldServer: submitTxImp: Done successfully!")
-            return sendMoneyResponse { txId = tx.txId }
+            return sendMoneyResponse { txId = "Submitted successfully with ID ${tx.txId} "}
         }
 
         override suspend fun otherShardInducedUTxO(request: UTxO): InternalResponse {
